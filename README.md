@@ -1,4 +1,4 @@
-# Rust obniz
+# obniz rust
 
 Rust を用いてobnizを操作するライブラリです。
 
