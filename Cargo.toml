@@ -1,5 +1,5 @@
 [package]
-name = "obniz_rust"
+name = "obniz-rust"
 version = "0.1.0"
 authors = ["Takumi Okamoto <takumi1988okamoto@gmail.com>"]
 edition = "2018"
