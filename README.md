@@ -2,4 +2,4 @@
 (現在開発中です。)
 Rust を用いてobnizを操作するライブラリです。
 
-通信にはWebsocketを用います。
+通信には[Websocket](https://crates.io/crates/websocket)を用います。
