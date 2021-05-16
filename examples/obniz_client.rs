@@ -1,8 +1,6 @@
 use std::env;
-
-use futures_util::{future, pin_mut, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tungstenite::{connect};
+use serde_json::{Value};
 
 const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io"; // FIXME wss://obniz.ioだとトラブル発生　なぜ？
 
@@ -18,7 +16,11 @@ async fn main() {
     let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
     // let (ws_stream, response) = connect_async(url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
-    // redirect先のホスト名が返ってくるので、ホスト名を変えて再度アクセス
     let message = ws_stream.read_message().expect("Fail to read message");
-    println!("{}", message);
+    let message = message.to_text().expect("fail to parse text");
+    //println!("{}", message);
+    let v: Value = serde_json::from_str(message).expect("Failed to parse json");
+    println!("{}", v);
+    let redirect_host = &v[0]["ws"]["redirect"];
+    println!("{}", redirect_host);
 }
