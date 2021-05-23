@@ -1,5 +1,6 @@
 use std::env;
-use tungstenite::{connect,Message};
+use tungstenite::{connect};
+use tungstenite::Message;
 use serde_json::{Value};
 
 const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io"; // FIXME wss://obniz.ioだとトラブル発生　なぜ？
