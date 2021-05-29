@@ -1,5 +1,7 @@
 use serde::{Deserialize};
 
+// WebsocketのjsonはすべてReponseで受けてmatchで
+
 // this is root node
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]

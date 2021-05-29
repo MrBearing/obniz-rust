@@ -7,8 +7,6 @@ use serde::{Serialize};
 pub enum Request {
   Ws(WS),
   System(System),
-
-  // IO
   // IO
   Io0(Io),
   Io1(Io),
@@ -65,8 +63,8 @@ pub enum Request {
 
 #[derive(Debug,Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum WS {
-  ResetObnizOnWsDisconnection(bool),
+pub struct WS {
+  pub reset_obniz_on_ws_disconnection :bool,
 }
 
 #[derive(Debug,Serialize)]
@@ -465,7 +463,7 @@ mod api_tests {
   use super::*;
   #[test]
   fn test_ws_serialize() { 
-    let obj = vec![Request::Ws(WS::ResetObnizOnWsDisconnection(false))];
+    let obj = vec![Request::Ws(WS{reset_obniz_on_ws_disconnection:false,})];
     let serialized = serde_json::to_string(&obj).unwrap();
     let expected = r#"[{"ws":{"reset_obniz_on_ws_disconnection":false}}]"#;
     assert_eq!(serialized,expected.to_string(),)   
