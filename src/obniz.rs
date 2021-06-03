@@ -25,11 +25,13 @@ impl Obniz{
     }
   }
 
+  
+
   pub fn connect(mut self 
     // TODO 引数追加で別スレッドで動作する関数受け取れるようにする
    ){
     if self.is_connected {
-      return
+      return ()
     }
     if let None = self.api_url {
       let redirect_host = Obniz::get_obniz_redirect_host(&(self.obniz_id.to_string()));
@@ -38,7 +40,8 @@ impl Obniz{
     let ( mut _ws_stream, _response) = connect(self.api_url.unwrap()).expect("Failed to connect");
     
     // self.websocket_stream = ws_stream;
-    // TODO tokioでスレッドスポーン
+    
+    // TODO tokioでresponse 待機・ループするスレッドをスポーン
 
     self.is_connected = true;
   }
@@ -87,6 +90,30 @@ impl Obniz{
   }
 
 }
+
+
+
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
 
 #[derive(Debug)]
 pub struct Io {
@@ -532,12 +559,4 @@ impl Plugin {
 
 // debug は
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 
-
-}
