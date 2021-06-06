@@ -3,3 +3,5 @@
 **/.vscode
 **/.idea/**
 target/
+example/server.rs
+example/client.rs

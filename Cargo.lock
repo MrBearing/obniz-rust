@@ -395,6 +395,7 @@ name = "obniz-rust"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "futures-channel",
  "futures-util",
  "serde",
  "serde_json",

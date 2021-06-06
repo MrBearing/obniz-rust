@@ -4,7 +4,7 @@ use super::api::response::*;
 use super::api::request;
 // use serde_json::{Value};
 
- const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
+const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
 
 #[derive(Debug)]
 pub struct Obniz{
@@ -40,7 +40,7 @@ impl Obniz{
     let ( mut _ws_stream, _response) = connect(self.api_url.unwrap()).expect("Failed to connect");
     
     // self.websocket_stream = ws_stream;
-    
+
     // TODO tokioでresponse 待機・ループするスレッドをスポーン
 
     self.is_connected = true;
@@ -67,6 +67,7 @@ impl Obniz{
     let url = Obniz::endpoint_url(obniz_id);
     //Websokcet接続
     let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
+
     // TODO ココから先は非同期でやりたい。。。
     let message = ws_stream.read_message().expect("Fail to read message");
     let message = message.to_text().expect("fail to parse text");
