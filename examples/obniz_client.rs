@@ -3,8 +3,7 @@ use tungstenite::{connect};
 use tungstenite::Message;
 use serde_json::{Value};
 
-const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io"; // FIXME wss://obniz.ioだとトラブル発生　なぜ？
-
+const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io"; 
 fn obniz_endpoint_url(host : &str, obniz_id: &String) -> url::Url {
     let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
     println!("{}",endpoint);
@@ -17,7 +16,7 @@ fn get_obniz_redirect_host(obniz_id :&String) -> String {
     let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
     let message = ws_stream.read_message().expect("Fail to read message");
     let message = message.to_text().expect("fail to parse text");
-    println!("{}", message);
+    println!("message {}", message);
     let v: Value = serde_json::from_str(message).expect("Failed to parse json");
     let host = v[0]["ws"]["redirect"].as_str().unwrap();
     host.to_string()
@@ -30,10 +29,17 @@ fn main() {
     println!("redirect host = {}", redirect_host);
 
     let url = obniz_endpoint_url(redirect_host.as_str(),&obniz_id);
+    println!("***connect !!***");
+    let ( mut ws_stream,  _response) = connect(url).expect("Failed to connect");
+    let welcome_message = ws_stream.read_message().expect("Failed to read message");
+    let welcome_message = welcome_message.to_text().expect("Failed to parse text ");
+    println!("**welcome message *** \n{} \n***********", welcome_message);
 
-    let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
-    let json = serde_json::json!([{"display":{"clear":true}}, {"display":{"text":"Works fine."}}]);
+    let json = serde_json::json!([{"display":{"clear":true}}, {"display":{"text":"Works fine...."}}]);
     let message = Message::text(json.to_string());
     ws_stream.write_message(message).expect("Fail to write_message");
     
 }
+
+// How to run the
+// cargo run --example obniz_client XXXX-XXXX
