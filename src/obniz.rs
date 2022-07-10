@@ -1,4 +1,4 @@
-use tungstenite::{connect,WebSocket};
+use tungstenite;//{connect,WebSocket};
 
 use super::api::response::*;
 use super::api::request;
@@ -9,78 +9,59 @@ const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
 #[derive(Debug)]
 pub struct Obniz{
   obniz_id: String,
-  is_connected: bool,
   //websocket_stream: Option<WebSocket>,
   api_url: Option<url::Url>,
 }
 
 impl Obniz{
   pub fn new(obniz_id_: &str) -> Obniz{
-
     Obniz{
       obniz_id: obniz_id_.to_string(),
-      is_connected: false,
       api_url: None,
       //websocket_stream: None,
     }
   }
-
+}
   
 
-  pub fn connect(mut self 
-    // TODO 引数追加で別スレッドで動作する関数受け取れるようにする
-   ){
-    if self.is_connected {
-      return ()
-    }
-    if let None = self.api_url {
-      let redirect_host = Obniz::get_obniz_redirect_host(&(self.obniz_id.to_string()));
-      self.api_url = Some(Obniz::endpoint_url_with_host(&redirect_host, &self.obniz_id));
-    }
-    let ( mut _ws_stream, _response) = connect(self.api_url.unwrap()).expect("Failed to connect");
-    
-    // self.websocket_stream = ws_stream;
+pub fn connect(obniz_id: &str){
+  let redirect_host = get_redirect_host(&(obniz_id.to_string()));//ここはawaitする
+  let api_url = endpoint_url_with_host(&redirect_host, &obniz_id);
+  let ( mut _ws_stream, _response) 
+    = tungstenite::connect(api_url)
+      .expect("Failed to connect");//ここもawait
+  // streamとURLを入れてObniz構造体をFuture入れて返す
+}
 
-    // TODO tokioでresponse 待機・ループするスレッドをスポーン
 
-    self.is_connected = true;
+fn endpoint_url_with_host(host : &str, obniz_id: &str) -> url::Url {
+  let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
+  dbg!("{}",&endpoint);
+  url::Url::parse(&endpoint).unwrap()
+}
+
+
+fn get_redirect_host(obniz_id :&String) -> String { //TODO Futureを返す様に戻り値を変更
+
+  let url = endpoint_url_with_host(OBNIZE_WEBSOKET_HOST,obniz_id);
+  //Websokcet接続
+  let ( mut ws_stream, _response) = tungstenite::connect(url).expect("Failed to connect");//TODO awaitする
+
+  let message = ws_stream.read_message().expect("Fail to read message");
+
+  //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
+  let message = message.to_text().expect("fail to parse text");
+  println!("{}", message);
+  let res: Vec<Response> = serde_json::from_str(message).expect("Failed to parse json");
+
+  match &res[0] {
+    Response::Ws(ws) => match ws {
+      WS::Redirect(host) => return host.to_string(),
+      _ => panic!("response is not redirect address. ")
+    },
+    _response => panic!("response is not ws. response. {:?}", _response)
   }
-
-  pub fn is_connected(self) -> bool {
-    self.is_connected
-  }
-
-  fn endpoint_url_with_host(host : &str, obniz_id: &str) -> url::Url {
-    let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
-    println!("{}",endpoint);
-    url::Url::parse(&endpoint).unwrap()
-  }
-
-
-  fn endpoint_url(obniz_id : &String)-> url::Url {
-    Obniz::endpoint_url_with_host(OBNIZE_WEBSOKET_HOST,obniz_id)
-  }
-
-
-  fn get_obniz_redirect_host(obniz_id :&String) -> String {
-
-    let url = Obniz::endpoint_url(obniz_id);
-    //Websokcet接続
-    let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
-
-    // TODO ココから先は非同期でやりたい。。。
-    let message = ws_stream.read_message().expect("Fail to read message");
-    let message = message.to_text().expect("fail to parse text");
-    println!("{}", message);
-    let res: Vec<Response> = serde_json::from_str(message).expect("Failed to parse json");
-    match &res[0] {
-      Response::Ws(ws) => match ws {
-        WS::Redirect(host) => return host.to_string(),
-        _ => panic!("response is not redirect address. ")
-      },
-      _response => panic!("response is not ws. response. {:?}", _response)
-    }
-  }
+}
 
   pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
     let reset = request::WS{
@@ -89,11 +70,6 @@ impl Obniz{
     let req = vec![reset];
     //ws_stream.write_message
   }
-
-}
-
-
-
 
 #[cfg(test)]
 mod tests {
