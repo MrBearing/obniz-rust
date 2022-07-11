@@ -26,7 +26,7 @@ impl Obniz{
 
 pub fn connect(obniz_id: &str){
   let redirect_host = get_redirect_host(&(obniz_id.to_string()));//ここはawaitする
-  let api_url = endpoint_url_with_host(&redirect_host, &obniz_id);
+  let api_url = endpoint_url(&redirect_host, &obniz_id);
   let ( mut _ws_stream, _response) 
     = tungstenite::connect(api_url)
       .expect("Failed to connect");//ここもawait
@@ -34,7 +34,7 @@ pub fn connect(obniz_id: &str){
 }
 
 
-fn endpoint_url_with_host(host : &str, obniz_id: &str) -> url::Url {
+fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
   let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
   dbg!("{}",&endpoint);
   url::Url::parse(&endpoint).unwrap()
