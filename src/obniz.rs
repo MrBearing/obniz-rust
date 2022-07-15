@@ -1,36 +1,53 @@
-use tungstenite;//{connect,WebSocket};
-
+use std::sync::Arc;
+use anyhow::*;
+use ::async_std::prelude::*;
+use ::async_std::stream::*;
+use ::async_std::task::block_on;
+use ::async_std::io::*;
+use serde::de::DeserializeOwned;
+use async_tungstenite::*;
+use async_tungstenite::async_std::*;
+use std::net::TcpStream;
 use super::api::response::*;
 use super::api::request;
 // use serde_json::{Value};
 
 const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
+pub type ObnizWebSocketStream = WebSocketStream<ConnectStream>;
 
+
+///
+/// Obnizの機能そのもの
+/// 
 #[derive(Debug)]
-pub struct Obniz{
+pub struct Obniz{ //TODO websocketの実装変わっても、使えるようにGenericする？
   obniz_id: String,
-  //websocket_stream: Option<WebSocket>,
-  api_url: Option<url::Url>,
+  websocket_stream: Arc<ObnizWebSocketStream>, // Arcで包まなヤバない？
+  api_url: url::Url,
 }
 
 impl Obniz{
-  pub fn new(obniz_id_: &str) -> Obniz{
+  fn new(id: &str,websocket: ObnizWebSocketStream, api_url_: url::Url) -> Obniz{
+    let id = id.to_string();
+    let arc = Arc::new(websocket);
     Obniz{
-      obniz_id: obniz_id_.to_string(),
-      api_url: None,
-      //websocket_stream: None,
+      obniz_id: id,
+      api_url: api_url_,
+      websocket_stream: arc
     }
   }
 }
-  
 
-pub fn connect(obniz_id: &str){
-  let redirect_host = get_redirect_host(&(obniz_id.to_string()));//ここはawaitする
+
+pub async fn connect(obniz_id: &str) ->  anyhow::Result<Obniz>{
+  let redirect_host = block_on(get_redirect_host(&(obniz_id.to_string())))?;
   let api_url = endpoint_url(&redirect_host, &obniz_id);
-  let ( mut _ws_stream, _response) 
-    = tungstenite::connect(api_url)
-      .expect("Failed to connect");//ここもawait
-  // streamとURLを入れてObniz構造体をFuture入れて返す
+    // TODO 非同期のWebsocket接続に変える
+  let ( mut ws_stream, _response) 
+    = connect_async(&api_url)
+      // .context("Failed to connect")
+      .await?;
+  Ok(Obniz::new(obniz_id,ws_stream,api_url))
 }
 
 
@@ -40,36 +57,36 @@ fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
   url::Url::parse(&endpoint).unwrap()
 }
 
+async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
-fn get_redirect_host(obniz_id :&String) -> String { //TODO Futureを返す様に戻り値を変更
-
-  let url = endpoint_url_with_host(OBNIZE_WEBSOKET_HOST,obniz_id);
+  let url = endpoint_url(OBNIZE_WEBSOKET_HOST,obniz_id);
   //Websokcet接続
-  let ( mut ws_stream, _response) = tungstenite::connect(url).expect("Failed to connect");//TODO awaitする
-
-  let message = ws_stream.read_message().expect("Fail to read message");
-
-  //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
-  let message = message.to_text().expect("fail to parse text");
-  println!("{}", message);
-  let res: Vec<Response> = serde_json::from_str(message).expect("Failed to parse json");
-
+  let ( mut ws_stream, _response) = connect_async(url).await?;
+  let op = ws_stream.next().await;
+  let result = match op {
+    Some(result) => result,
+    None => return Err(anyhow::anyhow!("some websocket error")),
+  };
+  let message = result.context("Failed to open message")?;
+  let message = message.to_text().context("Failed to convert in &str")?;
+  dbg!("{}", message);
+  let res: Vec<Response> = serde_json::from_str(message).context("Failed to parse json")?;
   match &res[0] {
     Response::Ws(ws) => match ws {
-      WS::Redirect(host) => return host.to_string(),
-      _ => panic!("response is not redirect address. ")
+      WS::Redirect(host) => return Ok(host.to_string()),
+      _ws => Err(anyhow::anyhow!("some thing wang : packet get {:?} object",_ws))
     },
-    _response => panic!("response is not ws. response. {:?}", _response)
+    _others => Err(anyhow::anyhow!("some thing wang : packet get {:?} object", _others))
   }
 }
 
-  pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
-    let reset = request::WS{
-      reset_obniz_on_ws_disconnection: enable,
-    };
-    let req = vec![reset];
-    //ws_stream.write_message
-  }
+pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
+  let reset = request::WS{
+    reset_obniz_on_ws_disconnection: enable,
+  };
+  let req = vec![reset];
+  //ws_stream.write_message
+}
 
 #[cfg(test)]
 mod tests {
@@ -90,7 +107,9 @@ mod tests {
 
 
 
+/*
 
+// ここ以降は再検討するので一旦コメントアウト
 
 #[derive(Debug)]
 pub struct Io {
@@ -109,18 +128,18 @@ pub enum  PullType{
   Float,
 }
 
-impl Io {
+impl Io for Obniz{
   pub fn new(self,pin: u8) -> Io {
     unimplemented!();
     Io{}
   }
-  pub fn get(self)->bool{
+  pub fn io_get(self)->bool{
     unimplemented!();
   }
-  pub fn set(self,value: bool) {
+  pub fn io_set(self,value: bool) {
     unimplemented!();
   }
-  pub fn deinit(self){
+  pub fn io_deinit(self){
     unimplemented!();
   }
   pub fn setAsInput(self,enable_stream_callback: bool){
@@ -394,14 +413,25 @@ impl Measurement {
   }
 }
 
-pub struct Display{}
+**/
+
+/* 
+
+/// TODOこういう実装をすれば良いはず
+pub trait Display{
+  pub fn text(text : &str);
+  pub fn clear();
+  pub fn qr(text : &str , correction_type : QrCorrectionType );
+  pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth );
+  pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str);
+
 pub enum QrCorrectionType {
   L, M, Q, H,
 }
 pub enum DisplayRawCollorDepth {
   OneBit,  FourBit, SixteenBit,
 }
-impl Display {
+pub impl Display for Obniz {
   pub fn text(text : &str){
     unimplemented!();
   }
@@ -421,6 +451,12 @@ impl Display {
     unimplemented!();
   }
 }
+*/
+
+
+
+
+/*
 
 pub struct Switch {
 
@@ -536,4 +572,4 @@ impl Plugin {
 
 // debug は
 
-
+*/
