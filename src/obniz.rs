@@ -21,9 +21,9 @@ pub type ObnizWebSocketStream = WebSocketStream<ConnectStream>;
 /// 
 #[derive(Debug)]
 pub struct Obniz{ //TODO websocketの実装変わっても、使えるようにGenericする？
-  obniz_id: String,
-  websocket_stream: Arc<ObnizWebSocketStream>, // Arcで包まなヤバない？
-  api_url: url::Url,
+  pub obniz_id: String,
+  pub websocket_stream: Arc<ObnizWebSocketStream>, 
+  pub api_url: url::Url,
 }
 
 impl Obniz{
@@ -41,6 +41,7 @@ impl Obniz{
 
 pub async fn connect(obniz_id: &str) ->  anyhow::Result<Obniz>{
   let redirect_host = block_on(get_redirect_host(&(obniz_id.to_string())))?;
+  dbg!(&redirect_host);
   let api_url = endpoint_url(&redirect_host, &obniz_id);
     // TODO 非同期のWebsocket接続に変える
   let ( mut ws_stream, _response) 
@@ -53,13 +54,13 @@ pub async fn connect(obniz_id: &str) ->  anyhow::Result<Obniz>{
 
 fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
   let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
-  dbg!("{}",&endpoint);
   url::Url::parse(&endpoint).unwrap()
 }
 
-async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
+pub async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
   let url = endpoint_url(OBNIZE_WEBSOKET_HOST,obniz_id);
+  //dbg!(&url);
   //Websokcet接続
   let ( mut ws_stream, _response) = connect_async(url).await?;
   let op = ws_stream.next().await;
@@ -67,10 +68,11 @@ async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
     Some(result) => result,
     None => return Err(anyhow::anyhow!("some websocket error")),
   };
+  
   let message = result.context("Failed to open message")?;
   let message = message.to_text().context("Failed to convert in &str")?;
-  dbg!("{}", message);
   let res: Vec<Response> = serde_json::from_str(message).context("Failed to parse json")?;
+  
   match &res[0] {
     Response::Ws(ws) => match ws {
       WS::Redirect(host) => return Ok(host.to_string()),
@@ -415,43 +417,46 @@ impl Measurement {
 
 **/
 
-/* 
+/* */
 
 /// TODOこういう実装をすれば良いはず
-pub trait Display{
-  pub fn text(text : &str);
-  pub fn clear();
-  pub fn qr(text : &str , correction_type : QrCorrectionType );
-  pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth );
-  pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str);
-
+pub trait ObnizDisplay{
+  fn display_text(text : &str)->  anyhow::Result<()>;
+  // fn clear();
+  // fn qr(text : &str , correction_type : QrCorrectionType );
+  // fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth );
+  // fn pin_assign(pin: u8 , module_name :&str, pin_name :&str);
+}
 pub enum QrCorrectionType {
   L, M, Q, H,
 }
 pub enum DisplayRawCollorDepth {
   OneBit,  FourBit, SixteenBit,
 }
-pub impl Display for Obniz {
-  pub fn text(text : &str){
+impl ObnizDisplay for Obniz {
+  fn display_text(text : &str) ->  anyhow::Result<()>{
+    let request_obj = request::Display::Text(text.into());
+    let json = serde_json::to_string(&request_obj)?;
+    
     unimplemented!();
   }
 
-  pub fn clear(){
-    unimplemented!();
-  }
+  // pub fn clear(){
+  //   unimplemented!();
+  // }
 
-  pub fn qr(text : &str , correction_type : QrCorrectionType ){
-    unimplemented!();
-  }
-  pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth ){
-    unimplemented!();
-  }
+  // pub fn qr(text : &str , correction_type : QrCorrectionType ){
+  //   unimplemented!();
+  // }
+  // pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth ){
+  //   unimplemented!();
+  // }
 
-  pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str){
-    unimplemented!();
-  }
+  // pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str){
+  //   unimplemented!();
+  // }
 }
-*/
+/* */
 
 
 
