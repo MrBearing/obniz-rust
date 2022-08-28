@@ -50,7 +50,6 @@ fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
   url::Url::parse(&endpoint).unwrap()
 }
 
-pub async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
 fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
