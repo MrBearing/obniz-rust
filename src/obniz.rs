@@ -12,6 +12,9 @@ use url::Url;
 const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
 
+///
+/// Obnizの機能そのもの
+/// 
 #[derive(Debug)]
 pub struct Obniz{
   pub obniz_id: String,
@@ -37,16 +40,17 @@ pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
   let ( ws_stream, _response) 
     = tungstenite::connect(&api_url)
       .context("Failed to connect")?;
+
   Ok(Obniz::new(obniz_id,ws_stream,api_url))
 }
 
 
 fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
   let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
-  //dbg!("{}",&endpoint);
   url::Url::parse(&endpoint).unwrap()
 }
 
+pub async fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
 fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
 
@@ -66,6 +70,7 @@ fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
       _ws => Err(anyhow::anyhow!("something wang : packet get {:?} object",_ws))
     },
     _others => Err(anyhow::anyhow!("something wang : packet get {:?} object", _others))
+
   }
 }
 
@@ -89,6 +94,8 @@ mod tests {
 
 
 
+
+// ここ以降は再検討するので一旦コメントアウト
 
 // #[derive(Debug)]
 // pub struct Io {
@@ -144,6 +151,7 @@ mod tests {
 //   //     }
 //   //   ]
 //   }
+
   
 //   pub fn setOutputType(self,output_type : OutputType){
 //     // [
@@ -393,6 +401,71 @@ mod tests {
 // }
 
 
+// pub fn set_read_callback(){
+//     unimplemented!();
+//   }
+// }
+
+
+// struct I2c {
+
+// }
+
+// impl I2c {
+//   pub fn new() -> I2c {
+//     unimplemented!();
+//     I2c{}
+//   }
+//   pub fn init_as_master() {unimplemented!();}
+//   pub fn init_as_slave() {
+//     unimplemented!();
+//   }
+//   pub fn write(address: u16 , 
+//     address_bits : u8, //default 7
+//     data : Vec<u8>) {
+//     unimplemented!();
+//   }
+//   pub fn write_with_callback(address: u16 , 
+//     address_bits : u8, //default 7
+//     data : Vec<u8>
+//     //read call back
+//   ) {
+//     unimplemented!();
+//   }
+
+//   pub fn set_read_callback(){
+//     unimplemented!();
+//   }
+// }
+
+// pub struct LogicAnalyzer{}
+
+// impl LogicAnalyzer {
+//   pub fn init() {
+//     unimplemented!();
+//   }
+
+//   pub fn deinit(){
+//     unimplemented!();
+//   }
+
+//   pub fn set_data_response_callback(){
+//     unimplemented!();
+//   }
+// }
+
+// pub struct Measurement {}
+
+// impl Measurement {
+//   /// set callback 
+//   pub fn echo() {
+//     unimplemented!();
+//   }
+// }
+
+
+/* */
+
 pub enum QrCorrectionType {
   L, M, Q, H,
 }
@@ -434,7 +507,6 @@ impl ObnizDisplay for Obniz {
   //   unimplemented!();
   // }
 }
-
 // pub struct Switch {
 
 // }
@@ -548,5 +620,4 @@ impl ObnizDisplay for Obniz {
 // }
 
 // // debug は
-
 
