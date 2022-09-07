@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = { version = "1" }
-# futures = "0.3"
-# futures-util = { version = "0.3", default-features = false, features = ["async-await", "sink", "std"] }
-# futures-channel = "0.3"
+futures = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["async-await", "sink", "std"] }
+futures-channel = "0.3"
 url = "2.2.2"
 async-std = "1.12.0"
 tungstenite = {version="0.17.2",features=["native-tls"]}

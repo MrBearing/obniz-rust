@@ -92,8 +92,6 @@ mod tests {
 }
 
 
-
-
 // ここ以降は再検討するので一旦コメントアウト
 
 // #[derive(Debug)]
@@ -113,13 +111,49 @@ mod tests {
 //   Float,
 // }
 
-// impl Io {
-//   pub fn new(self,pin: u8) -> Io {
-//     unimplemented!();
-//     Io{}
-//   }
-//   pub fn get(self)->bool{
-//     unimplemented!();
+// pub trait Io {
+// //   pub fn new(self,pin: u8) -> Result<Io> ;
+//   fn get(&mut self,pin :u8)->anyhow::Result<bool>;
+// //   pub fn set(self,value: bool);
+// //   pub fn deinit(self);
+// //   pub fn setAsInput(self,enable_stream_callback: bool);
+// //   pub fn setAsOutput(self,value : bool);
+// //   pub fn setOutputType(self,output_type : OutputType);
+// //   pub fn setPullType(self,pull_type : PullType);
+// }
+
+
+// impl Io for Obniz{
+// //   pub fn new(self,pin: u8) -> Io {
+// //     unimplemented!();
+// //     Io{}
+// //   }
+
+//   fn get(&mut self, pin : u8)->anyhow::Result<bool>{
+//     // Json Example
+//     // [
+//     //   {
+//     //       "io0": "get"
+//     //   }
+//     // ]
+//     // ↓　↑　これを実現するシリアライザ・デシリアライザを実装した方が良いかも。
+//     // IO{
+//     //   pin: u8,
+//     //   value: String ,// &str
+//     // }
+
+//     let io_key = format!("io{}",pin);
+//     let json = serde_json::json!([{&io_key:"get"}]);
+
+//     let json = serde_json::to_string(&json)?; 
+//     let msg = tungstenite::Message::from(json);
+//     let _ = self.websocket.write_message(msg);
+//     let message = self.websocket.read_message()?;
+//     let message_str = message.to_text().context("fail to parse text")?;
+//     let response : Vec<Response> = serde_json::from_str(message_str)?;
+//     // レスポンスの切り分け必要ioxをまたどうにかしなきゃ行けない
+//     // マクロ使う？
+
 //   }
 //   pub fn set(self,value: bool) {
 //     unimplemented!();
@@ -175,7 +209,7 @@ mod tests {
 //       unimplemented!();
 //   }
   
-// }
+//}
 
 // pub struct IoAnimation {
 //   // websocket 持たす?
