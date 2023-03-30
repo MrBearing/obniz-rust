@@ -14,7 +14,7 @@ pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
 
 ///
 /// Obnizの機能そのもの
-/// 
+///
 #[derive(Debug)]
 pub struct Obniz{
   pub obniz_id: String,
@@ -37,7 +37,7 @@ impl Obniz {
 pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
   let redirect_host = get_redirect_host(&(obniz_id.to_string()))?;
   let api_url = endpoint_url(&redirect_host, &obniz_id);
-  let ( ws_stream, _response) 
+  let ( ws_stream, _response)
     = tungstenite::connect(&api_url)
       .context("Failed to connect")?;
 
@@ -51,7 +51,7 @@ fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
 }
 
 
-fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> { 
+fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
 
   let url = endpoint_url(OBNIZE_WEBSOKET_HOST,obniz_id);
   //Websokcet接続
@@ -145,7 +145,7 @@ mod tests {
 //     let io_key = format!("io{}",pin);
 //     let json = serde_json::json!([{&io_key:"get"}]);
 
-//     let json = serde_json::to_string(&json)?; 
+//     let json = serde_json::to_string(&json)?;
 //     let msg = tungstenite::Message::from(json);
 //     let _ = self.websocket.write_message(msg);
 //     let message = self.websocket.read_message()?;
@@ -185,7 +185,7 @@ mod tests {
 //   //   ]
 //   }
 
-  
+
 //   pub fn setOutputType(self,output_type : OutputType){
 //     // [
 //     // {
@@ -208,7 +208,7 @@ mod tests {
 //   //   ]
 //       unimplemented!();
 //   }
-  
+
 //}
 
 // pub struct IoAnimation {
@@ -245,11 +245,11 @@ mod tests {
 
 // pub struct AD {
 //   pin: u8,
-// } 
+// }
 
 // impl AD {
 //   pub fn new(pin: u8) -> AD {
-//     AD { 
+//     AD {
 //       pin: pin
 //     }
 //   }
@@ -281,10 +281,10 @@ mod tests {
 //     }
 //   }
 
-//   /// 
-//   /// init pwm module 
+//   ///
+//   /// init pwm module
 //   /// pin 0-5
-//   /// 
+//   ///
 //   pub fn init(self, pin : u8) {
 //     unimplemented!();
 //   }
@@ -296,7 +296,6 @@ mod tests {
 //     unimplemented!();
 //   }
 
-  
 //   pub fn setPulseWidth(self, width_msec : u64) {
 //     unimplemented!();
 //   }
@@ -356,7 +355,7 @@ mod tests {
 //   pub fn init_as_master() {
 //     unimplemented!();
 //   }
-  
+
 //   pub fn deinit() {
 //     unimplemented!();
 
@@ -390,12 +389,12 @@ mod tests {
 //   pub fn init_as_slave() {
 //     unimplemented!();
 //   }
-//   pub fn write(address: u16 , 
+//   pub fn write(address: u16 ,
 //     address_bits : u8, //default 7
 //     data : Vec<u8>) {
 //     unimplemented!();
 //   }
-//   pub fn write_with_callback(address: u16 , 
+//   pub fn write_with_callback(address: u16 ,
 //     address_bits : u8, //default 7
 //     data : Vec<u8>
 //     //read call back
@@ -427,7 +426,7 @@ mod tests {
 // pub struct Measurement {}
 
 // impl Measurement {
-//   /// set callback 
+//   /// set callback
 //   pub fn echo() {
 //     unimplemented!();
 //   }
@@ -453,12 +452,12 @@ mod tests {
 //   pub fn init_as_slave() {
 //     unimplemented!();
 //   }
-//   pub fn write(address: u16 , 
+//   pub fn write(address: u16 ,
 //     address_bits : u8, //default 7
 //     data : Vec<u8>) {
 //     unimplemented!();
 //   }
-//   pub fn write_with_callback(address: u16 , 
+//   pub fn write_with_callback(address: u16 ,
 //     address_bits : u8, //default 7
 //     data : Vec<u8>
 //     //read call back
@@ -560,7 +559,7 @@ impl ObnizDisplay for Obniz {
 
 // impl TCP {
 //   pub fn connect(port:u16, domain: &str) {
-//     unimplemented!(); 
+//     unimplemented!();
 //   }
 
 //   pub fn disconnect(){
@@ -623,7 +622,7 @@ impl ObnizDisplay for Obniz {
 
 // struct Message{}
 // impl Message {
-  
+
 //   pub fn send(data: &str, to: Vec<String> ){
 //     unimplemented!();
 //   }
@@ -639,7 +638,7 @@ impl ObnizDisplay for Obniz {
 
 // struct Plugin {}
 // impl Plugin {
-  
+
 //   pub fn send(data: Vec<u8> ){
 //     unimplemented!();
 //   }
@@ -649,7 +648,7 @@ impl ObnizDisplay for Obniz {
 //   ){
 //     unimplemented!();
 //   }
-  
+
 // }
 
 // // debug は
