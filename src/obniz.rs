@@ -4,9 +4,9 @@ use tungstenite::stream::MaybeTlsStream;
 use std::net::TcpStream;
 
 use anyhow::*;
-use super::api::response::*;
-use super::api::request;
-// use serde_json::{Value};
+// use super::api::response::*;
+// use super::api::request;
+use serde_json::{Value};
 use url::Url;
 
 const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
@@ -36,7 +36,7 @@ impl Obniz {
 
 pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
   let redirect_host = get_redirect_host(&(obniz_id.to_string()))?;
-  let api_url = endpoint_url(&redirect_host, &obniz_id);
+  let api_url = endpoint_url(&redirect_host, &obniz_id)?;
   let ( ws_stream, _response)
     = tungstenite::connect(&api_url)
       .context("Failed to connect")?;
@@ -45,15 +45,15 @@ pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
 }
 
 
-fn endpoint_url(host : &str, obniz_id: &str) -> url::Url {
+fn endpoint_url(host : &str, obniz_id: &str) -> anyhow::Result<url::Url> {
   let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
-  url::Url::parse(&endpoint).unwrap()
+  url::Url::parse(&endpoint).context("Failed to parse endpoint url")
+  // TODO add unit test
 }
-
 
 fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
 
-  let url = endpoint_url(OBNIZE_WEBSOKET_HOST,obniz_id);
+  let url = endpoint_url(OBNIZE_WEBSOKET_HOST,obniz_id)?;
   //Websokcet接続
   let ( mut ws_stream, _response) = tungstenite::connect(url).context("Failed to connect")?;
 
@@ -61,25 +61,20 @@ fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
   //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
   let message = message.to_text().context("fail to parse text")?;
   // println!("{}", message);
-  let res: Vec<Response> = serde_json::from_str(message).context("Failed to parse json")?;
 
-  match &res[0] {
-    Response::Ws(ws) => match ws {
-      WS::Redirect(host) => return Ok(host.to_string()),
-      _ws => Err(anyhow::anyhow!("something wang : packet get {:?} object",_ws))
-    },
-    _others => Err(anyhow::anyhow!("something wang : packet get {:?} object", _others))
-
-  }
+  // TODO:Response
+  let res: Value = serde_json::from_str(message).context("Failed to parse json")?;
+  // TODO : Is this value really string ? need to confirm
+  Ok(res[0]["ws"]["redirect"].to_string())
 }
 
-pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
-  let reset = request::WS{
-    reset_obniz_on_ws_disconnection: enable,
-  };
-  let req = vec![reset];
-  //ws_stream.write_message
-}
+// pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
+//   let reset = request::WS{
+//     reset_obniz_on_ws_disconnection: enable,
+//   };
+//   let req = vec![reset];
+//   //ws_stream.write_message
+// }
 
 #[cfg(test)]
 mod tests {
@@ -87,8 +82,6 @@ mod tests {
     fn it_works() {
         assert_eq!(2 + 2, 4);
     }
-
-
 }
 
 
@@ -489,7 +482,7 @@ mod tests {
 // pub struct Measurement {}
 
 // impl Measurement {
-//   /// set callback 
+//   /// set callback
 //   pub fn echo() {
 //     unimplemented!();
 //   }
@@ -498,35 +491,35 @@ mod tests {
 
 /* */
 
-pub enum QrCorrectionType {
-  L, M, Q, H,
-}
-pub enum DisplayRawCollorDepth {
-  OneBit,  FourBit, SixteenBit,
-}
-/// TODOこういう実装をすれば良いはず
-pub trait ObnizDisplay{
-  fn display_text(&mut self,text : &str)->  anyhow::Result<()>;
-  fn clear(&mut self) -> anyhow::Result<()>;
-  // fn qr(text : &str , correction_type : QrCorrectionType );
-  // fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth );
-  // fn pin_assign(pin: u8 , module_name :&str, pin_name :&str);
-}
+// pub enum QrCorrectionType {
+//   L, M, Q, H,
+// }
+// pub enum DisplayRawCollorDepth {
+//   OneBit,  FourBit, SixteenBit,
+// }
+// /// TODOこういう実装をすれば良いはず
+// pub trait ObnizDisplay{
+//   fn display_text(&mut self,text : &str)->  anyhow::Result<()>;
+//   fn clear(&mut self) -> anyhow::Result<()>;
+//   // fn qr(text : &str , correction_type : QrCorrectionType );
+//   // fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth );
+//   // fn pin_assign(pin: u8 , module_name :&str, pin_name :&str);
+// }
 
-impl ObnizDisplay for Obniz {
-  fn display_text(&mut self,text : &str) ->  anyhow::Result<()>{
-    let request_obj = vec![request::Request::Display(request::Display::Text(text.into()))];
-    let json = serde_json::to_string(&request_obj)?;
-    let msg = tungstenite::Message::from(json);
-    self.websocket.write_message(msg).context("test")
-  }
+// impl ObnizDisplay for Obniz {
+//   fn display_text(&mut self,text : &str) ->  anyhow::Result<()>{
+//     let request_obj = vec![request::Request::Display(request::Display::Text(text.into()))];
+//     let json = serde_json::to_string(&request_obj)?;
+//     let msg = tungstenite::Message::from(json);
+//     self.websocket.write_message(msg).context("test")
+//   }
 
-  fn clear(&mut self) -> anyhow::Result<()>{
-    let request_obj = vec![request::Request::Display(request::Display::Clear(true))];
-    let json = serde_json::to_string(&request_obj)?;
-    let msg = tungstenite::Message::from(json);
-    self.websocket.write_message(msg).context("test")
-  }
+//   fn clear(&mut self) -> anyhow::Result<()>{
+//     let request_obj = vec![request::Request::Display(request::Display::Clear(true))];
+//     let json = serde_json::to_string(&request_obj)?;
+//     let msg = tungstenite::Message::from(json);
+//     self.websocket.write_message(msg).context("test")
+//   }
 
   // pub fn qr(text : &str , correction_type : QrCorrectionType ){
   //   unimplemented!();
@@ -538,7 +531,7 @@ impl ObnizDisplay for Obniz {
   // pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str){
   //   unimplemented!();
   // }
-}
+// }
 // pub struct Switch {
 
 // }
