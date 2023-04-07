@@ -60,12 +60,13 @@ fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
   let message = ws_stream.read_message().context("Fail to read message")?;
   //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
   let message = message.to_text().context("fail to parse text")?;
-  // println!("{}", message);
 
-  // TODO:Response
   let res: Value = serde_json::from_str(message).context("Failed to parse json")?;
-  // TODO : Is this value really string ? need to confirm
-  Ok(res[0]["ws"]["redirect"].to_string())
+  let retval = res[0]["ws"]["redirect"].as_str(); // need to temporary convert to str. coz its include double quotes.
+  match retval {
+      Some(host) => Ok(host.to_string()),
+      None => Err(anyhow!("Failed to get redirect host name")),
+  }
 }
 
 // pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
@@ -521,7 +522,7 @@ mod tests {
 //     self.websocket.write_message(msg).context("test")
 //   }
 
-  // pub fn qr(text : &str , correction_type : QrCorrectionType ){
+//   // pub fn qr(text : &str , correction_type : QrCorrectionType ){
   //   unimplemented!();
   // }
   // pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth ){
@@ -531,7 +532,8 @@ mod tests {
   // pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str){
   //   unimplemented!();
   // }
-// }
+//  }
+
 // pub struct Switch {
 
 // }
