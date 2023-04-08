@@ -13,7 +13,7 @@ const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
 
 ///
-/// Obnizの機能そのもの
+/// Obniz
 ///
 #[derive(Debug)]
 pub struct Obniz{
@@ -32,6 +32,7 @@ impl Obniz {
       websocket: wsocket
     }
   }
+
 }
 
 pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
@@ -46,10 +47,17 @@ pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
 
 
 fn endpoint_url(host : &str, obniz_id: &str) -> anyhow::Result<url::Url> {
+  if ! host.starts_with("wss://"){
+    return Err(anyhow!("Illegal url, host needs to start with 'wss://'"));
+  }
+
+
+
   let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
   url::Url::parse(&endpoint).context("Failed to parse endpoint url")
   // TODO add unit test
 }
+
 
 fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
 
@@ -88,11 +96,20 @@ fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use anyhow::*;
+    use url::{Url,Host, ParseError};
+    #[test]
+    fn test_endpoint_url() -> anyhow::Result<Url> {
+      let result_url = endpoint_url("ws://test_host", "0000-0000")?;
+      assert!(result_url.host() == Some(Host::Domain("test_host")));
+    }
     #[test]
     fn it_works() {
         assert_eq!(2 + 2, 4);
     }
 }
+
 
 
 // ここ以降は再検討するので一旦コメントアウト
