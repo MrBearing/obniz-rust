@@ -13,7 +13,7 @@ const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
 
 ///
-/// Obnizの機能そのもの
+/// Obniz
 ///
 #[derive(Debug)]
 pub struct Obniz{
@@ -32,6 +32,7 @@ impl Obniz {
       websocket: wsocket
     }
   }
+
 }
 
 pub fn connect(obniz_id: &str)-> anyhow::Result<Obniz>{
