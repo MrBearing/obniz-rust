@@ -62,11 +62,20 @@ fn get_redirect_host(obniz_id :&String) -> anyhow::Result<String> {
   let message = message.to_text().context("fail to parse text")?;
 
   let res: Value = serde_json::from_str(message).context("Failed to parse json")?;
-  let retval = res[0]["ws"]["redirect"].as_str(); // need to temporary convert to str. coz its include double quotes.
-  match retval {
-      Some(host) => Ok(host.to_string()),
-      None => Err(anyhow!("Failed to get redirect host name")),
+  let json_redirect_host = &res[0]["ws"]["redirect"];
+  let redirect_host = match json_redirect_host.as_str() { // ダブルクォートが入るので除去するためにstrに一旦する
+      Some(host) => host.to_string(),
+      None => return Err(anyhow!("Failed to get redirect host name")),
+  };
+  println!("redirect_host : {redirect_host}");
+  if redirect_host.is_empty() {
+    return Err(anyhow!("Redirect host name is empty"));
   }
+  if ! redirect_host.starts_with("wss://") {
+    return Err(anyhow!("Redirect host name is bad format"));
+  }
+
+  Ok(redirect_host)
 }
 
 // pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
