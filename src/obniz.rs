@@ -25,11 +25,13 @@ pub struct Obniz {
 impl Obniz {
     async fn new(id: &str, socket: ObnizWSocket, api_url_: url::Url) -> Obniz {
         let id = id.to_string();
+        // TODO 受信メッセージの
         let (write, read) = socket.split();
         let receive_thread = {
             read.for_each(|message| async {
                 // let data = message.unwrap().into_data();
                 // ここでメッセージの振り分けを行う
+                // メッセージ送信　チャンネル使う
                 //
                 println!("receive message !!")
             })
