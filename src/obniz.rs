@@ -9,7 +9,7 @@ use anyhow::*;
 use futures::stream::ForEach;
 use serde_json::Value;
 use url::Url;
-
+use tokio::sync::oneshot;
 use futures::stream::SplitStream;
 
 const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
@@ -30,13 +30,13 @@ pub struct Obniz {
 impl Obniz {
     async fn new(id: &str, socket: ObnizWSocket, api_url_: url::Url) -> Obniz {
         let id = id.to_string();
-        // TODO レスポンス待ちの配列を作る Map<&str , oneshotチャンネル>
+        // TODO レスポンス待ちのマップ Map<&str , oneshot[] >
         let (write, read) = socket.split();
         let receive_thread = {
             read.for_each(|message| async {
                 // let data = message.unwrap().into_data();
                 // ここでメッセージの振り分けを行う
-                // メッセージチャンネル使う
+                // レスポンス待ちのマップをヘッダで検索
                 //
                 //ラムダではなく別の関数にすべきか。。。
                 println!("receive message !!")
@@ -51,9 +51,23 @@ impl Obniz {
         }
     }
 
-    pub async fn send(&mut self, msg: Message) -> anyhow::Result<()> {
+    pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
         self.websocket.write_message(msg).context("test")
     }
+
+    pub send_awat_response(&mut self, msg: Message){
+        //チャンネルを作る
+        let (rx ,tx) = onshot::channel();
+        self.send_message(msg)
+        // コールバック関数にチャンネルを渡す
+        // self.set_call_back()
+        // チャンネルからのメッセージを受信するまでawati
+    }
+
+    pub fn set_call_back(&mut self, header : &str ,call_back_function : bool){
+        // 
+    }
+
 }
 
 pub async fn connect(obniz_id: &str) -> anyhow::Result<Obniz> {
