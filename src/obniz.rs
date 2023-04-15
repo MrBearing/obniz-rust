@@ -3,14 +3,14 @@ use futures::pin_mut;
 use tungstenite::stream::MaybeTlsStream;
 use tungstenite::*;
 
-use std::net::TcpStream;
+use std::{net::TcpStream, collections::HashMap};
 
 use anyhow::*;
-use futures::stream::ForEach;
 use serde_json::Value;
 use url::Url;
 use tokio::sync::oneshot;
-use futures::stream::SplitStream;
+use futures::stream::{ForEach,SplitStream};
+use std::collections::Hashmap;
 
 const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
@@ -25,20 +25,20 @@ pub struct Obniz {
     pub obniz_id: String,
     pub websocket: ObnizWSocket,
     pub api_url: Url,
+    call_back_map :HashMap<String, >
 }
 
 impl Obniz {
-    async fn new(id: &str, socket: ObnizWSocket, api_url_: url::Url) -> Obniz {
+    async fn new(id: &str, socket: ObnizWSocket, api_url_: url::Url) -> Obniz { // 戻り値はResultにすべき
         let id = id.to_string();
-        // TODO レスポンス待ちのマップ Map<&str , oneshot[] >
         let (write, read) = socket.split();
         let receive_thread = {
             read.for_each(|message| async {
                 // let data = message.unwrap().into_data();
                 // ここでメッセージの振り分けを行う
                 // レスポンス待ちのマップをヘッダで検索
-                //
                 //ラムダではなく別の関数にすべきか。。。
+                
                 println!("receive message !!")
             })
         };
@@ -55,7 +55,7 @@ impl Obniz {
         self.websocket.write_message(msg).context("test")
     }
 
-    pub send_awat_response(&mut self, msg: Message){
+    pub send_awat_response(&mut self, msg: Message)-> anyhow::Result<Value>{
         //チャンネルを作る
         let (rx ,tx) = onshot::channel();
         self.send_message(msg)
