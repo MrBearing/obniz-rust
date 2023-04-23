@@ -1,81 +1,83 @@
-use async_tungstenite::async_std::connect_async;
-use futures::pin_mut;
-use tungstenite::stream::MaybeTlsStream;
-use tungstenite::*;
+use futures_util::{future, pin_mut, StreamExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use std::{net::TcpStream, collections::HashMap};
+use futures::stream::{SplitSink, SplitStream};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::net::unix::pipe::Receiver;
+
+use tokio::net::TcpStream;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, WebSocketStream};
 
 use anyhow::*;
 use serde_json::Value;
+use tungstenite::stream::MaybeTlsStream;
 use url::Url;
+
 use tokio::sync::oneshot;
-use futures::stream::{ForEach,SplitStream};
-use std::collections::Hashmap;
 
 const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
-pub type ObnizWSocket = WebSocket<MaybeTlsStream<TcpStream>>;
+pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 // pub type ReceiveForeach = ForEach<SplitStream<ObnizWSocket>,
 //     impl Future<Output = ()>, |Result<Message, Error>| -> impl Future<Output = ()> >;
-type Message = tungstenite::Message;
+// type Message = async_tungstenite::tungstenite::protocol::Message;
+
 ///
 /// Obniz
 ///
 #[derive(Debug)]
-pub struct Obniz {
-    pub obniz_id: String,
-    pub websocket: ObnizWSocket,
-    pub api_url: Url,
-    call_back_map :HashMap<String, >
-}
+pub struct Obniz(
+    pub String,
+    pub SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    pub SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+    pub Url,
+);
 
 impl Obniz {
-    async fn new(id: &str, socket: ObnizWSocket, api_url_: url::Url) -> Obniz { // 戻り値はResultにすべき
+    async fn new(id: &str, api_url: url::Url) -> anyhow::Result<Obniz> {
+        let (socket, _response) = connect_async(&api_url).await.context("Failed to connect")?;
+
         let id = id.to_string();
         let (write, read) = socket.split();
+
         let receive_thread = {
             read.for_each(|message| async {
                 // let data = message.unwrap().into_data();
                 // ここでメッセージの振り分けを行う
                 // レスポンス待ちのマップをヘッダで検索
                 //ラムダではなく別の関数にすべきか。。。
-                
                 println!("receive message !!")
             })
         };
         pin_mut!(receive_thread);
 
-        Obniz {
-            obniz_id: id,
-            api_url: api_url_,
-            websocket: socket,
-        }
+        Ok(Obniz(id, api_url, read, write))
     }
 
     pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
-        self.websocket.write_message(msg).context("test")
+        self.2.write_message(msg).context("test")
     }
 
-    pub send_awat_response(&mut self, msg: Message)-> anyhow::Result<Value>{
+    pub fn send_await_response(&mut self, msg: Message) -> anyhow::Result<Value> {
         //チャンネルを作る
-        let (rx ,tx) = onshot::channel();
-        self.send_message(msg)
-        // コールバック関数にチャンネルを渡す
+
+        let (tx, rx) = oneshot::channel::<Message>();
+        self.send_message(msg);
+        // コールバック関数にtxを渡す
         // self.set_call_back()
-        // チャンネルからのメッセージを受信するまでawati
+        // チャンネルからのメッセージを受信するまでawait
+        Err(anyhow!("not implemented"))
     }
 
-    pub fn set_call_back(&mut self, header : &str ,call_back_function : bool){
-        // 
+    pub async fn set_call_back(&mut self, header: &str, call_back_function: bool) {
+        //
     }
-
 }
 
 pub async fn connect(obniz_id: &str) -> anyhow::Result<Obniz> {
     let redirect_host = get_redirect_host(&(obniz_id.to_string()))?;
     let api_url = endpoint_url(&redirect_host, &obniz_id)?;
-    let (ws_stream, _response) = connect_async(&api_url).await.context("Failed to connect")?;
-
-    Ok(Obniz::new(obniz_id, ws_stream, api_url))
+    Ok(Obniz::new(obniz_id, api_url))
 }
 
 fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
