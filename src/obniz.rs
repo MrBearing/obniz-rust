@@ -1,17 +1,18 @@
-use futures_util::{future, pin_mut, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-use futures::stream::{SplitSink, SplitStream};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::net::unix::pipe::Receiver;
-
-use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, WebSocketStream};
-
 use anyhow::*;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt,
+};
+use futures_util::{pin_mut, StreamExt};
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+// use tokio::net::unix::pipe::Receiver;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{
+    connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+};
+
 use serde_json::Value;
-use tungstenite::stream::MaybeTlsStream;
 use url::Url;
 
 use tokio::sync::oneshot;
@@ -26,16 +27,18 @@ pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Obniz
 ///
 #[derive(Debug)]
-pub struct Obniz(
-    pub String,
-    pub SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    pub SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    pub Url,
-);
+pub struct Obniz {
+    id: String,
+    stream: SplitStream<ObnizWSocket>,
+    sink: SplitSink<ObnizWSocket, Message>,
+    url: Url,
+}
 
 impl Obniz {
     async fn new(id: &str, api_url: url::Url) -> anyhow::Result<Obniz> {
-        let (socket, _response) = connect_async(&api_url).await.context("Failed to connect")?;
+        let (socket, _response) = connect_async(&api_url)
+            .await
+            .context(format!("Failed to connect to {api_url}"))?;
 
         let id = id.to_string();
         let (write, read) = socket.split();
@@ -51,11 +54,19 @@ impl Obniz {
         };
         pin_mut!(receive_thread);
 
-        Ok(Obniz(id, api_url, read, write))
+        Ok(Obniz {
+            id: String::from(id),
+            url: api_url,
+            stream: read,
+            sink: write,
+        })
     }
 
     pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
-        self.2.write_message(msg).context("test")
+        // self.sink.write_message(msg).context("test")
+        self.sink
+            .send(msg)
+            .context(format!("failed to send messages  message {msg}"))
     }
 
     pub fn send_await_response(&mut self, msg: Message) -> anyhow::Result<Value> {
@@ -75,9 +86,10 @@ impl Obniz {
 }
 
 pub async fn connect(obniz_id: &str) -> anyhow::Result<Obniz> {
-    let redirect_host = get_redirect_host(&(obniz_id.to_string()))?;
+    let redirect_host =
+        get_redirect_host(&(obniz_id.to_string())).context("failed to get redirect host name")?;
     let api_url = endpoint_url(&redirect_host, &obniz_id)?;
-    Ok(Obniz::new(obniz_id, api_url))
+    Obniz::new(obniz_id, api_url).await
 }
 
 fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
