@@ -1,6 +1,8 @@
+use core::future::Future;
+
 use anyhow::*;
 use futures::{
-    stream::{SplitSink, SplitStream},
+    stream::{ForEach, SplitSink, SplitStream},
     SinkExt,
 };
 use futures_util::{pin_mut, StreamExt};
@@ -21,7 +23,13 @@ const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 // pub type ReceiveForeach = ForEach<SplitStream<ObnizWSocket>,
 //     impl Future<Output = ()>, |Result<Message, Error>| -> impl Future<Output = ()> >;
-// type Message = async_tungstenite::tungstenite::protocol::Message;
+// type Message = tokio_tungstenite::tungstenite::protocol::Message;
+
+pub type ThreadType = ForEach<
+    SplitStream<ObnizWSocket>,
+    dyn Future<Output = ()>,
+    dyn Fn(Result<Message, tungstenite::error::Error>) -> dyn Future<Output = ()>,
+>;
 
 ///
 /// Obniz
@@ -29,7 +37,6 @@ pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 #[derive(Debug)]
 pub struct Obniz {
     id: String,
-    stream: SplitStream<ObnizWSocket>,
     sink: SplitSink<ObnizWSocket, Message>,
     url: Url,
 }
@@ -43,30 +50,25 @@ impl Obniz {
         let id = id.to_string();
         let (write, read) = socket.split();
 
-        let receive_thread = {
-            read.for_each(|message| async {
-                // let data = message.unwrap().into_data();
-                // ここでメッセージの振り分けを行う
-                // レスポンス待ちのマップをヘッダで検索
-                //ラムダではなく別の関数にすべきか。。。
-                println!("receive message !!")
-            })
-        };
+        let receive_thread = read.for_each(|message| async {
+            // let data = message.unwrap().into_data();
+            // ここでメッセージの振り分けを行う
+            // レスポンス待ちのマップをヘッダで検索
+            //ラムダではなく別の関数にすべきか。。。
+            println!("receive message !!")
+        });
         pin_mut!(receive_thread);
 
         Ok(Obniz {
             id: String::from(id),
             url: api_url,
-            stream: read,
             sink: write,
         })
     }
 
     pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
         // self.sink.write_message(msg).context("test")
-        self.sink
-            .send(msg)
-            .context(format!("failed to send messages  message {msg}"))
+        self.sink.send(msg).
     }
 
     pub fn send_await_response(&mut self, msg: Message) -> anyhow::Result<Value> {
@@ -177,14 +179,14 @@ impl ObnizDisplay for Obniz {
     fn display_text(&mut self, text: &str) -> anyhow::Result<()> {
         let json = serde_json::json!([{"display":{"text":text}}]).to_string();
         // let msg = tungstenite::Message::from(json);
-        self.send(tungstenite::Message::from(json))
+        self.send_message(Message::from(json))
         // self.websocket.write_message(msg).context("test")
     }
 
     fn display_clear(&mut self) -> anyhow::Result<()> {
         let json = serde_json::json!([{"display":{"clear":true}}]).to_string();
         // let msg = tungstenite::Message::from(json);
-        self.send(tungstenite::Message::from(json))
+        self.send_message(Message::from(json))
         // self.websocket.write_message(msg).context("test")
     }
 
