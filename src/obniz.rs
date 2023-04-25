@@ -91,11 +91,13 @@ impl Obniz {
     }
 }
 
-pub async fn connect(obniz_id: &str) -> anyhow::Result<Obniz> {
+pub fn connect(obniz_id: &str) -> anyhow::Result<Obniz> {
     let redirect_host =
         get_redirect_host(&(obniz_id.to_string())).context("failed to get redirect host name")?;
     let api_url = endpoint_url(&redirect_host, &obniz_id)?;
-    Obniz::new(obniz_id, api_url).await
+    let rt = Runtime::new().context("failed to create Runtime")?;
+    rt.block_on(Obniz::new(obniz_id, api_url))
+        .context("failed to create Obniz object")
 }
 
 fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
