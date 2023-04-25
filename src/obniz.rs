@@ -8,8 +8,9 @@ use futures::{
 use futures_util::{pin_mut, StreamExt};
 // use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-// use tokio::net::unix::pipe::Receiver;
+// use tokio::net::unix::pipe::Receiver
 use tokio::net::TcpStream;
+use tokio::runtime::Runtime;
 use tokio_tungstenite::{
     connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
 };
@@ -39,6 +40,7 @@ pub struct Obniz {
     id: String,
     sink: SplitSink<ObnizWSocket, Message>,
     url: Url,
+    runtime: Runtime,
 }
 
 impl Obniz {
@@ -58,17 +60,19 @@ impl Obniz {
             println!("receive message !!")
         });
         pin_mut!(receive_thread);
-
+        let rt = Runtime::new().context("failled to make tokio::runtime::Runtime")?;
         Ok(Obniz {
             id: String::from(id),
             url: api_url,
             sink: write,
+            runtime: rt,
         })
     }
 
     pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
-        // self.sink.write_message(msg).context("test")
-        self.sink.send(msg).
+        self.runtime
+            .block_on(self.sink.send(msg))
+            .context("failed to send message")
     }
 
     pub fn send_await_response(&mut self, msg: Message) -> anyhow::Result<Value> {
@@ -180,6 +184,7 @@ impl ObnizDisplay for Obniz {
         let json = serde_json::json!([{"display":{"text":text}}]).to_string();
         // let msg = tungstenite::Message::from(json);
         self.send_message(Message::from(json))
+            .context("failed to display text")
         // self.websocket.write_message(msg).context("test")
     }
 
@@ -187,6 +192,7 @@ impl ObnizDisplay for Obniz {
         let json = serde_json::json!([{"display":{"clear":true}}]).to_string();
         // let msg = tungstenite::Message::from(json);
         self.send_message(Message::from(json))
+            .context("failed to clear display")
         // self.websocket.write_message(msg).context("test")
     }
 
