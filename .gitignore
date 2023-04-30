@@ -1,6 +1,5 @@
 **/target
 **/*.rs.bk
-**/.vscode
 **/.idea/**
 target/
 example/server.rs
