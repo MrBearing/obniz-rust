@@ -37,10 +37,10 @@ pub type ThreadType = ForEach<
 ///
 #[derive(Debug)]
 pub struct Obniz {
-    id: String,
+    // id: String,
     sink: SplitSink<ObnizWSocket, Message>,
-    url: Url,
-    runtime: Runtime,
+    // url: Url,
+    // runtime: Runtime,
 }
 
 impl Obniz {
@@ -49,28 +49,29 @@ impl Obniz {
             .await
             .context(format!("Failed to connect to {api_url}"))?;
 
-        let id = id.to_string();
-        let (write, read) = socket.split();
+        // let id = id.to_string();
+        let (write, _read) = socket.split();
 
-        let receive_thread = read.for_each(|message| async {
-            // let data = message.unwrap().into_data();
-            // ここでメッセージの振り分けを行う
-            // レスポンス待ちのマップをヘッダで検索
-            //ラムダではなく別の関数にすべきか。。。
-            println!("receive message !!")
-        });
-        pin_mut!(receive_thread);
-        let rt = Runtime::new().context("failled to make tokio::runtime::Runtime")?;
+        // let receive_thread = read.for_each(|message| async {
+        //     // let data = message.unwrap().into_data();
+        //     // ここでメッセージの振り分けを行う
+        //     // レスポンス待ちのマップをヘッダで検索
+        //     //ラムダではなく別の関数にすべきか。。。
+        //     println!("receive message !!")
+        // });
+        // pin_mut!(receive_thread);
+        // let rt = Runtime::new().context("failled to make tokio::runtime::Runtime")?;
         Ok(Obniz {
-            id: String::from(id),
-            url: api_url,
+            // id: String::from(id),
+            // url: api_url,
             sink: write,
-            runtime: rt,
+            // runtime: rt,
         })
     }
 
     pub fn send_message(&mut self, msg: Message) -> anyhow::Result<()> {
-        self.runtime
+        let runtime = Runtime::new().context("failled to make tokio::runtime::Runtime")?;
+        runtime
             .block_on(self.sink.send(msg))
             .context("failed to send message")
     }
