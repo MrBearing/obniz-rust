@@ -2,7 +2,7 @@
 name = "obniz-rust"
 version = "0.1.0"
 authors = ["Takumi Okamoto <takumi1988okamoto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "A Rust client library for Obniz IoT platform"
 license = "MIT"
 homepage = "https://github.com/MrBearing/obniz-rust"

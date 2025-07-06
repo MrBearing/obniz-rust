@@ -13,8 +13,8 @@ fn obniz_endpoint_url(host: &str, obniz_id: &String) -> url::Url {
 fn get_obniz_redirect_host(obniz_id: &String) -> String {
     let url = obniz_endpoint_url(OBNIZE_WEBSOKET_HOST, obniz_id);
     //Websokcet接続
-    let (mut ws_stream, _response) = connect(url).expect("Failed to connect");
-    let message = ws_stream.read_message().expect("Fail to read message");
+    let (mut ws_stream, _response) = connect(url.as_str()).expect("Failed to connect");
+    let message = ws_stream.read().expect("Fail to read message");
     let message = message.to_text().expect("fail to parse text");
     println!("message {message}");
     let v: Value = serde_json::from_str(message).expect("Failed to parse json");
@@ -31,8 +31,8 @@ fn main() {
 
     let url = obniz_endpoint_url(redirect_host.as_str(), &obniz_id);
     println!("***connect !!***");
-    let (mut ws_stream, _response) = connect(url).expect("Failed to connect");
-    let welcome_message = ws_stream.read_message().expect("Failed to read message");
+    let (mut ws_stream, _response) = connect(url.as_str()).expect("Failed to connect");
+    let welcome_message = ws_stream.read().expect("Failed to read message");
     let welcome_message = welcome_message.to_text().expect("Failed to parse text ");
     println!("**welcome message *** \n{welcome_message} \n***********");
 
@@ -40,8 +40,8 @@ fn main() {
         serde_json::json!([{"display":{"clear":true}}, {"display":{"text":"Works fine...."}}]);
     let message = Message::text(json.to_string());
     ws_stream
-        .write_message(message)
-        .expect("Fail to write_message");
+        .send(message)
+        .expect("Fail to send message");
 }
 
 // How to run the
