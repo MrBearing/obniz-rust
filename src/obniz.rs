@@ -172,9 +172,7 @@ impl Obniz {
                 if let Some(CallbackType::OneShot(sender)) = callbacks_guard.remove(&key) {
                     // Send the response through the channel
                     if sender.send(value.clone()).is_err() {
-                        eprintln!(
-                            "Failed to send response through oneshot channel for key: {key}"
-                        );
+                        eprintln!("Failed to send response through oneshot channel for key: {key}");
                     }
                 }
             }
