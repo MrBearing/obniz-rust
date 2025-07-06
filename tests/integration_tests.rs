@@ -128,14 +128,14 @@ async fn test_json_serialization() {
 async fn test_error_types() {
     // Test different error types
     let pin_error = ObnizError::InvalidPin(15);
-    assert!(format!("{}", pin_error).contains("Invalid pin number: 15"));
+    assert!(format!("{pin_error}").contains("Invalid pin number: 15"));
 
     let connection_error = ObnizError::Connection("Failed to connect".to_string());
-    assert!(format!("{}", connection_error).contains("Connection error"));
+    assert!(format!("{connection_error}").contains("Connection error"));
 
     let timeout_error = ObnizError::Timeout;
-    assert_eq!(format!("{}", timeout_error), "Operation timed out");
+    assert_eq!(format!("{timeout_error}"), "Operation timed out");
 
     let json_error = ObnizError::JsonParse("Invalid JSON".to_string());
-    assert!(format!("{}", json_error).contains("JSON parse error"));
+    assert!(format!("{json_error}").contains("JSON parse error"));
 }

@@ -8,7 +8,7 @@ const OBNIZ_ID: &str = "YOUR-OBNIZ-ID"; // Example: "1234-5678"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Obnizデバイステスト");
-    println!("📱 デバイスID: {}", OBNIZ_ID);
+    println!("📱 デバイスID: {OBNIZ_ID}");
 
     if OBNIZ_ID == "YOUR-OBNIZ-ID" {
         println!("❌ エラー: 実際のObnizデバイスIDを設定してください");
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 device
             }
             Err(e) => {
-                println!("❌ 接続エラー: {:?}", e);
+                println!("❌ 接続エラー: {e:?}");
                 return Err(e.into());
             }
         },
@@ -41,14 +41,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match display.clear().await {
         Ok(_) => println!("✅ 画面クリア成功"),
-        Err(e) => println!("❌ 画面クリアエラー: {:?}", e),
+        Err(e) => println!("❌ 画面クリアエラー: {e:?}"),
     }
 
     sleep(Duration::from_millis(500)).await;
 
     match display.text("Hello Rust!").await {
         Ok(_) => println!("✅ テキスト表示成功"),
-        Err(e) => println!("❌ テキスト表示エラー: {:?}", e),
+        Err(e) => println!("❌ テキスト表示エラー: {e:?}"),
     }
 
     sleep(Duration::from_secs(2)).await;
@@ -59,18 +59,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // LED点滅テスト
     for i in 1..=3 {
-        println!("  {}回目の点滅", i);
+        println!("  {i}回目の点滅");
 
         match io.set_pin_as_output(0, true).await {
             Ok(_) => println!("    ✅ ピン0 ON"),
-            Err(e) => println!("    ❌ ピン0 ON エラー: {:?}", e),
+            Err(e) => println!("    ❌ ピン0 ON エラー: {e:?}"),
         }
 
         sleep(Duration::from_millis(500)).await;
 
         match io.set_pin_as_output(0, false).await {
             Ok(_) => println!("    ✅ ピン0 OFF"),
-            Err(e) => println!("    ❌ ピン0 OFF エラー: {:?}", e),
+            Err(e) => println!("    ❌ ピン0 OFF エラー: {e:?}"),
         }
 
         sleep(Duration::from_millis(500)).await;
@@ -83,11 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✅ ピン1入力設定成功");
 
             match io.get_pin(1).await {
-                Ok(state) => println!("✅ ピン1状態: {}", state),
-                Err(e) => println!("❌ ピン1読み取りエラー: {:?}", e),
+                Ok(state) => println!("✅ ピン1状態: {state}"),
+                Err(e) => println!("❌ ピン1読み取りエラー: {e:?}"),
             }
         }
-        Err(e) => println!("❌ ピン1入力設定エラー: {:?}", e),
+        Err(e) => println!("❌ ピン1入力設定エラー: {e:?}"),
     }
 
     // PWMテスト
@@ -111,10 +111,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match pwm.deinit_channel(0).await {
                 Ok(_) => println!("✅ PWM停止"),
-                Err(e) => println!("❌ PWM停止エラー: {:?}", e),
+                Err(e) => println!("❌ PWM停止エラー: {e:?}"),
             }
         }
-        Err(e) => println!("❌ PWM設定エラー: {:?}", e),
+        Err(e) => println!("❌ PWM設定エラー: {e:?}"),
     }
 
     // スイッチテスト
@@ -122,15 +122,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let switch = obniz.switch();
 
     match switch.get_state().await {
-        Ok(state) => println!("✅ スイッチ状態: {}", state),
-        Err(e) => println!("❌ スイッチエラー: {:?}", e),
+        Ok(state) => println!("✅ スイッチ状態: {state}"),
+        Err(e) => println!("❌ スイッチエラー: {e:?}"),
     }
 
     // 最終メッセージ
     println!("\n📝 最終メッセージ...");
     match display.text("Test Complete!").await {
         Ok(_) => println!("✅ 最終メッセージ表示成功"),
-        Err(e) => println!("❌ 最終メッセージエラー: {:?}", e),
+        Err(e) => println!("❌ 最終メッセージエラー: {e:?}"),
     }
 
     println!("\n🎉 テスト完了!");
