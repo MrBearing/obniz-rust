@@ -211,7 +211,7 @@ impl AdManager {
     pub async fn deinit_all(&self) -> ObnizResult<()> {
         for channel in 0..=11 {
             if let Err(e) = self.deinit_channel(channel).await {
-                eprintln!("Failed to deinitialize AD channel {}: {}", channel, e);
+                eprintln!("Failed to deinitialize AD channel {channel}: {e}");
             }
         }
         Ok(())

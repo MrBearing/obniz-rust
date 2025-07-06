@@ -94,8 +94,8 @@ async fn main() -> ObnizResult<()> {
     // Create a simple checkerboard pattern (1-bit depth, 128x64 display)
     let mut raw_data = vec![0u16; 1024]; // 128 * 64 / 8 = 1024 bytes
 
-    for i in 0..raw_data.len() {
-        raw_data[i] = if (i / 8) % 2 == 0 { 0xAA } else { 0x55 };
+    for (i, item) in raw_data.iter_mut().enumerate() {
+        *item = if (i / 8) % 2 == 0 { 0xAA } else { 0x55 };
     }
 
     let raw_config = RawDisplayConfig {

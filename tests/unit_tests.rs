@@ -462,30 +462,30 @@ fn test_key_generation_patterns() {
 #[test]
 fn test_range_validations() {
     // Test frequency ranges for PWM
-    assert!(1 >= 1 && 1 <= 80_000_000); // Min frequency
-    assert!(80_000_000 >= 1 && 80_000_000 <= 80_000_000); // Max frequency
-    assert!(!(0 >= 1 && 0 <= 80_000_000)); // Invalid frequency
-    assert!(!(80_000_001 >= 1 && 80_000_001 <= 80_000_000)); // Invalid frequency
+    assert!((1..=80_000_000).contains(&1)); // Min frequency
+    assert!((1..=80_000_000).contains(&80_000_000)); // Max frequency
+    assert!(!(1..=80_000_000).contains(&0)); // Invalid frequency
+    assert!(!(1..=80_000_000).contains(&80_000_001)); // Invalid frequency
 
     // Test baud rate ranges for UART
-    assert!(115200 >= 1 && 115200 <= 5_000_000); // Common baud rate
-    assert!(9600 >= 1 && 9600 <= 5_000_000); // Common baud rate
-    assert!(!(0 >= 1 && 0 <= 5_000_000)); // Invalid baud rate
-    assert!(!(5_000_001 >= 1 && 5_000_001 <= 5_000_000)); // Invalid baud rate
+    assert!((1..=5_000_000).contains(&115200)); // Common baud rate
+    assert!((1..=5_000_000).contains(&9600)); // Common baud rate
+    assert!(!(1..=5_000_000).contains(&0)); // Invalid baud rate
+    assert!(!(1..=5_000_000).contains(&5_000_001)); // Invalid baud rate
 
     // Test servo angle range
-    assert!(0.0 >= 0.0 && 0.0 <= 180.0); // Min angle
-    assert!(90.0 >= 0.0 && 90.0 <= 180.0); // Middle angle
-    assert!(180.0 >= 0.0 && 180.0 <= 180.0); // Max angle
-    assert!(!(-1.0 >= 0.0 && -1.0 <= 180.0)); // Invalid angle
-    assert!(!(181.0 >= 0.0 && 181.0 <= 180.0)); // Invalid angle
+    assert!((0.0..=180.0).contains(&0.0)); // Min angle
+    assert!((0.0..=180.0).contains(&90.0)); // Middle angle
+    assert!((0.0..=180.0).contains(&180.0)); // Max angle
+    assert!(!(0.0..=180.0).contains(&-1.0)); // Invalid angle
+    assert!(!(0.0..=180.0).contains(&181.0)); // Invalid angle
 
     // Test voltage range
-    assert!(0.0 >= 0.0 && 0.0 <= 5.0); // Min voltage
-    assert!(3.3 >= 0.0 && 3.3 <= 5.0); // Common voltage
-    assert!(5.0 >= 0.0 && 5.0 <= 5.0); // Max voltage
-    assert!(!(-0.1 >= 0.0 && -0.1 <= 5.0)); // Invalid voltage
-    assert!(!(5.1 >= 0.0 && 5.1 <= 5.0)); // Invalid voltage
+    assert!((0.0..=5.0).contains(&0.0)); // Min voltage
+    assert!((0.0..=5.0).contains(&3.3)); // Common voltage
+    assert!((0.0..=5.0).contains(&5.0)); // Max voltage
+    assert!(!(0.0..=5.0).contains(&-0.1)); // Invalid voltage
+    assert!(!(0.0..=5.0).contains(&5.1)); // Invalid voltage
 }
 
 #[test]

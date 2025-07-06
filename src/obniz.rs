@@ -103,7 +103,7 @@ impl Obniz {
                     match cmd {
                         Some(ObnizCommand::Send { message, response_key: _ }) => {
                             if let Err(e) = write.send(message).await {
-                                eprintln!("Failed to send message: {}", e);
+                                eprintln!("Failed to send message: {e}");
                             }
                         }
                         Some(ObnizCommand::RegisterCallback { key, callback }) => {
@@ -121,11 +121,11 @@ impl Obniz {
                             match result {
                                 std::result::Result::Ok(msg) => {
                                     if let Err(e) = Self::handle_incoming_message(msg, &callbacks).await {
-                                        eprintln!("Failed to handle message: {}", e);
+                                        eprintln!("Failed to handle message: {e}");
                                     }
                                 }
                                 std::result::Result::Err(e) => {
-                                    eprintln!("WebSocket error: {}", e);
+                                    eprintln!("WebSocket error: {e}");
                                 }
                             }
                         }
@@ -173,8 +173,7 @@ impl Obniz {
                     // Send the response through the channel
                     if sender.send(value.clone()).is_err() {
                         eprintln!(
-                            "Failed to send response through oneshot channel for key: {}",
-                            key
+                            "Failed to send response through oneshot channel for key: {key}"
                         );
                     }
                 }
@@ -364,7 +363,7 @@ fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
         return Err(anyhow!("Illegal url, host needs to start with 'wss://'"));
     }
 
-    let endpoint = format!("{}/obniz/{}/ws/1", host, obniz_id);
+    let endpoint = format!("{host}/obniz/{obniz_id}/ws/1");
     url::Url::parse(&endpoint).context("Failed to parse endpoint url")
 }
 
@@ -395,6 +394,9 @@ fn get_redirect_host(obniz_id: &str) -> anyhow::Result<String> {
     Ok(redirect_host)
 }
 
+// Legacy enums moved to display module - kept here for backward compatibility
+pub use crate::display::{DisplayRawColorDepth, ObnizDisplay, QrCorrectionType};
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -402,9 +404,6 @@ mod tests {
         assert_eq!(2 + 2, 4);
     }
 }
-
-// Legacy enums moved to display module - kept here for backward compatibility
-pub use crate::display::{DisplayRawColorDepth, ObnizDisplay, QrCorrectionType};
 
 // The following modules are now implemented in separate files:
 // - IO: src/io.rs

@@ -266,7 +266,7 @@ impl PwmManager {
     pub async fn deinit_all(&self) -> ObnizResult<()> {
         for channel in 0..=5 {
             if let Err(e) = self.deinit_channel(channel).await {
-                eprintln!("Failed to deinitialize PWM channel {}: {}", channel, e);
+                eprintln!("Failed to deinitialize PWM channel {channel}: {e}");
             }
         }
         Ok(())

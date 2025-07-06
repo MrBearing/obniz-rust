@@ -81,7 +81,7 @@ impl From<tokio::sync::oneshot::error::RecvError> for ObnizError {
 
 impl From<tokio::sync::mpsc::error::SendError<crate::obniz::ObnizCommand>> for ObnizError {
     fn from(err: tokio::sync::mpsc::error::SendError<crate::obniz::ObnizCommand>) -> Self {
-        ObnizError::Connection(format!("Failed to send command: {}", err))
+        ObnizError::Connection(format!("Failed to send command: {err}"))
     }
 }
 

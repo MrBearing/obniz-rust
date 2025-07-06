@@ -115,15 +115,14 @@ impl DisplayManager {
         }
 
         let expected_length = match config.color_depth {
-            DisplayRawColorDepth::OneBit => (config.width * config.height + 7) / 8,
-            DisplayRawColorDepth::FourBit => (config.width * config.height + 1) / 2,
+            DisplayRawColorDepth::OneBit => (config.width * config.height).div_ceil(8),
+            DisplayRawColorDepth::FourBit => (config.width * config.height).div_ceil(2),
             DisplayRawColorDepth::SixteenBit => config.width * config.height,
         };
 
         if config.data.len() != expected_length as usize {
             return Err(ObnizError::Generic(format!(
-                "Data length mismatch. Expected {} but got {}",
-                expected_length,
+                "Data length mismatch. Expected {expected_length} but got {}",
                 config.data.len()
             )));
         }
