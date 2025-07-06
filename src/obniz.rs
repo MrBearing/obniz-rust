@@ -1,99 +1,399 @@
-use tungstenite::{connect,WebSocket};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use super::api::response::*;
-use super::api::request;
-// use serde_json::{Value};
+use anyhow::*;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt,
+};
+use futures_util::StreamExt;
+use tokio::net::TcpStream;
+use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio_tungstenite::{
+    connect_async as ws_connect_async, tungstenite::protocol::Message, MaybeTlsStream,
+    WebSocketStream,
+};
 
-const OBNIZE_WEBSOKET_HOST:&str = "wss://obniz.io";
+use serde_json::Value;
+
+use crate::ad::AdManager;
+use crate::display::DisplayManager;
+use crate::io::IoManager;
+use crate::pwm::PwmManager;
+use crate::switch::SwitchManager;
+use crate::system::SystemManager;
+use crate::uart::UartManager;
+
+const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
+pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
+pub type CallbackFn = Box<dyn Fn(Value) + Send + Sync>;
+pub type ResponseSender = oneshot::Sender<Value>;
+
+pub enum CallbackType {
+    OneShot(ResponseSender),
+    Persistent(CallbackFn),
+}
+
+impl std::fmt::Debug for CallbackType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallbackType::OneShot(_) => write!(f, "CallbackType::OneShot(_)"),
+            CallbackType::Persistent(_) => write!(f, "CallbackType::Persistent(_)"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Obniz {
+    id: String,
+    sender: mpsc::UnboundedSender<ObnizCommand>,
+    #[allow(dead_code)] // Used in WebSocket handler for callback routing
+    callbacks: Arc<RwLock<HashMap<String, CallbackType>>>,
+}
 
 #[derive(Debug)]
-pub struct Obniz{
-  obniz_id: String,
-  is_connected: bool,
-  //websocket_stream: Option<WebSocket>,
-  api_url: Option<url::Url>,
+pub enum ObnizCommand {
+    Send {
+        message: Message,
+        response_key: Option<String>,
+    },
+    RegisterCallback {
+        key: String,
+        callback: CallbackType,
+    },
+    UnregisterCallback {
+        key: String,
+    },
 }
 
-impl Obniz{
-  pub fn new(obniz_id_: &str) -> Obniz{
+impl Obniz {
+    async fn new(id: &str, api_url: url::Url) -> anyhow::Result<Obniz> {
+        let (socket, _response) = ws_connect_async(api_url.as_str())
+            .await
+            .context(format!("Failed to connect to {api_url}"))?;
 
-    Obniz{
-      obniz_id: obniz_id_.to_string(),
-      is_connected: false,
-      api_url: None,
-      //websocket_stream: None,
+        let (write, read) = socket.split();
+        let (cmd_sender, cmd_receiver) = mpsc::unbounded_channel();
+        let callbacks = Arc::new(RwLock::new(HashMap::new()));
+
+        let callbacks_clone = callbacks.clone();
+
+        // Spawn WebSocket handler task
+        tokio::spawn(async move {
+            Self::websocket_handler(write, read, cmd_receiver, callbacks_clone).await;
+        });
+
+        Ok(Obniz {
+            id: id.to_string(),
+            sender: cmd_sender,
+            callbacks,
+        })
     }
-  }
 
-  
-
-  pub fn connect(mut self 
-    // TODO 引数追加で別スレッドで動作する関数受け取れるようにする
-   ){
-    if self.is_connected {
-      return ()
+    async fn websocket_handler(
+        mut write: SplitSink<ObnizWSocket, Message>,
+        mut read: SplitStream<ObnizWSocket>,
+        mut cmd_receiver: mpsc::UnboundedReceiver<ObnizCommand>,
+        callbacks: Arc<RwLock<HashMap<String, CallbackType>>>,
+    ) {
+        loop {
+            tokio::select! {
+                cmd = cmd_receiver.recv() => {
+                    match cmd {
+                        Some(ObnizCommand::Send { message, response_key: _ }) => {
+                            if let Err(e) = write.send(message).await {
+                                eprintln!("Failed to send message: {e}");
+                            }
+                        }
+                        Some(ObnizCommand::RegisterCallback { key, callback }) => {
+                            callbacks.write().await.insert(key, callback);
+                        }
+                        Some(ObnizCommand::UnregisterCallback { key }) => {
+                            callbacks.write().await.remove(&key);
+                        }
+                        None => break,
+                    }
+                }
+                message = read.next() => {
+                    match message {
+                        Some(result) => {
+                            match result {
+                                std::result::Result::Ok(msg) => {
+                                    if let Err(e) = Self::handle_incoming_message(msg, &callbacks).await {
+                                        eprintln!("Failed to handle message: {e}");
+                                    }
+                                }
+                                std::result::Result::Err(e) => {
+                                    eprintln!("WebSocket error: {e}");
+                                }
+                            }
+                        }
+                        None => break,
+                    }
+                }
+            }
+        }
     }
-    if let None = self.api_url {
-      let redirect_host = Obniz::get_obniz_redirect_host(&(self.obniz_id.to_string()));
-      self.api_url = Some(Obniz::endpoint_url_with_host(&redirect_host, &self.obniz_id));
+
+    async fn handle_incoming_message(
+        message: Message,
+        callbacks: &Arc<RwLock<HashMap<String, CallbackType>>>,
+    ) -> anyhow::Result<()> {
+        let text = message
+            .to_text()
+            .context("Failed to parse message as text")?;
+        let value: Value = serde_json::from_str(text).context("Failed to parse JSON")?;
+
+        let mut keys_to_remove = Vec::new();
+
+        // Route message to appropriate callback
+        {
+            let callbacks_guard = callbacks.read().await;
+
+            // Check if it's an array response (typical obniz format)
+            if let Some(array) = value.as_array() {
+                for item in array {
+                    let mut remove_keys =
+                        Self::route_message_to_callback(item, &callbacks_guard).await?;
+                    keys_to_remove.append(&mut remove_keys);
+                }
+            } else {
+                let mut remove_keys =
+                    Self::route_message_to_callback(&value, &callbacks_guard).await?;
+                keys_to_remove.append(&mut remove_keys);
+            }
+        }
+
+        // Handle OneShot callbacks - send response and remove from map
+        if !keys_to_remove.is_empty() {
+            let mut callbacks_guard = callbacks.write().await;
+            for key in keys_to_remove {
+                if let Some(CallbackType::OneShot(sender)) = callbacks_guard.remove(&key) {
+                    // Send the response through the channel
+                    if sender.send(value.clone()).is_err() {
+                        eprintln!("Failed to send response through oneshot channel for key: {key}");
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
-    let ( mut _ws_stream, _response) = connect(self.api_url.unwrap()).expect("Failed to connect");
-    
-    // self.websocket_stream = ws_stream;
 
-    // TODO tokioでresponse 待機・ループするスレッドをスポーン
+    async fn route_message_to_callback(
+        message: &Value,
+        callbacks: &HashMap<String, CallbackType>,
+    ) -> anyhow::Result<Vec<String>> {
+        let mut keys_to_remove = Vec::new();
 
-    self.is_connected = true;
-  }
+        // Extract callback key from message structure
+        let callback_key = Self::extract_callback_key(message);
 
-  pub fn is_connected(self) -> bool {
-    self.is_connected
-  }
+        if let Some(key) = callback_key {
+            if let Some(callback) = callbacks.get(&key) {
+                match callback {
+                    CallbackType::OneShot(_sender) => {
+                        // For OneShot callbacks, we need to signal that this key should be removed
+                        // The actual sending will be handled in the websocket_handler
+                        keys_to_remove.push(key.clone());
+                    }
+                    CallbackType::Persistent(callback_fn) => {
+                        callback_fn(message.clone());
+                    }
+                }
+            }
+        }
 
-  fn endpoint_url_with_host(host : &str, obniz_id: &str) -> url::Url {
-    let endpoint = format!("{}/obniz/{}/ws/1",host,obniz_id);
-    println!("{}",endpoint);
-    url::Url::parse(&endpoint).unwrap()
-  }
+        Ok(keys_to_remove)
+    }
 
+    fn extract_callback_key(message: &Value) -> Option<String> {
+        // Handle array responses first (most common format from obniz)
+        if let Some(array) = message.as_array() {
+            if let Some(first_item) = array.first() {
+                if let Some(obj) = first_item.as_object() {
+                    for (key, _) in obj {
+                        // Check for various obniz response patterns
+                        if key.starts_with("io")
+                            || key.starts_with("ad")
+                            || key.starts_with("pwm")
+                            || key.starts_with("uart")
+                            || key == "display"
+                            || key == "switch"
+                            || key == "system"
+                        {
+                            return Some(key.clone());
+                        }
+                    }
+                }
+            }
+        }
 
-  fn endpoint_url(obniz_id : &String)-> url::Url {
-    Obniz::endpoint_url_with_host(OBNIZE_WEBSOKET_HOST,obniz_id)
-  }
+        // Check for direct object responses (fallback)
+        if let Some(obj) = message.as_object() {
+            for (key, _) in obj {
+                if key.starts_with("io")
+                    || key.starts_with("ad")
+                    || key.starts_with("pwm")
+                    || key.starts_with("uart")
+                    || key == "display"
+                    || key == "switch"
+                    || key == "system"
+                {
+                    return Some(key.clone());
+                }
+            }
+        }
 
+        None
+    }
 
-  fn get_obniz_redirect_host(obniz_id :&String) -> String {
+    pub fn send_message(&self, msg: Message) -> anyhow::Result<()> {
+        self.sender
+            .send(ObnizCommand::Send {
+                message: msg,
+                response_key: None,
+            })
+            .context("Failed to send command")
+    }
 
-    let url = Obniz::endpoint_url(obniz_id);
+    pub async fn send_await_response(
+        &self,
+        msg: Message,
+        response_key: String,
+    ) -> anyhow::Result<Value> {
+        let (tx, rx) = oneshot::channel::<Value>();
+
+        // Register callback for response
+        self.sender
+            .send(ObnizCommand::RegisterCallback {
+                key: response_key.clone(),
+                callback: CallbackType::OneShot(tx),
+            })
+            .context("Failed to register callback")?;
+
+        // Send message
+        self.sender
+            .send(ObnizCommand::Send {
+                message: msg,
+                response_key: Some(response_key.clone()),
+            })
+            .context("Failed to send message")?;
+
+        // Wait for response (the callback will be automatically removed after receiving)
+        let result = rx.await.context("Failed to receive response")?;
+
+        Ok(result)
+    }
+
+    pub fn register_callback<F>(&self, key: String, callback: F) -> anyhow::Result<()>
+    where
+        F: Fn(Value) + Send + Sync + 'static,
+    {
+        self.sender
+            .send(ObnizCommand::RegisterCallback {
+                key,
+                callback: CallbackType::Persistent(Box::new(callback)),
+            })
+            .context("Failed to register callback")
+    }
+
+    pub fn unregister_callback(&self, key: String) -> anyhow::Result<()> {
+        self.sender
+            .send(ObnizCommand::UnregisterCallback { key })
+            .context("Failed to unregister callback")
+    }
+
+    /// Get the IO manager for this Obniz device
+    pub fn io(&self) -> IoManager {
+        IoManager::new(self.clone())
+    }
+
+    /// Get the display manager for this Obniz device
+    pub fn display(&self) -> DisplayManager {
+        DisplayManager::new(self.clone())
+    }
+
+    /// Get the system manager for this Obniz device
+    pub fn system(&self) -> SystemManager {
+        SystemManager::new(self.clone())
+    }
+
+    /// Get the AD manager for this Obniz device
+    pub fn ad(&self) -> AdManager {
+        AdManager::new(self.clone())
+    }
+
+    /// Get the PWM manager for this Obniz device
+    pub fn pwm(&self) -> PwmManager {
+        PwmManager::new(self.clone())
+    }
+
+    /// Get the UART manager for this Obniz device
+    pub fn uart(&self) -> UartManager {
+        UartManager::new(self.clone())
+    }
+
+    /// Get the switch manager for this Obniz device
+    pub fn switch(&self) -> SwitchManager {
+        SwitchManager::new(self.clone())
+    }
+
+    /// Get the device ID
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+pub async fn connect_async(obniz_id: &str) -> anyhow::Result<Obniz> {
+    let redirect_host = get_redirect_host(obniz_id).context("failed to get redirect host name")?;
+    let api_url = endpoint_url(&redirect_host, obniz_id)?;
+    Obniz::new(obniz_id, api_url)
+        .await
+        .context("failed to create Obniz object")
+}
+
+// Synchronous connect function is deprecated - use connect_async instead
+
+fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
+    if !host.starts_with("wss://") {
+        return Err(anyhow!("Illegal url, host needs to start with 'wss://'"));
+    }
+
+    let endpoint = format!("{host}/obniz/{obniz_id}/ws/1");
+    url::Url::parse(&endpoint).context("Failed to parse endpoint url")
+}
+
+fn get_redirect_host(obniz_id: &str) -> anyhow::Result<String> {
+    let url = endpoint_url(OBNIZE_WEBSOKET_HOST, obniz_id)?;
     //Websokcet接続
-    let ( mut ws_stream, _response) = connect(url).expect("Failed to connect");
+    let (mut ws_stream, _response) = tungstenite::connect(url).context("Failed to connect")?;
 
-    // TODO ココから先は非同期でやりたい。。。
-    let message = ws_stream.read_message().expect("Fail to read message");
-    let message = message.to_text().expect("fail to parse text");
-    println!("{}", message);
-    let res: Vec<Response> = serde_json::from_str(message).expect("Failed to parse json");
-    match &res[0] {
-      Response::Ws(ws) => match ws {
-        WS::Redirect(host) => return host.to_string(),
-        _ => panic!("response is not redirect address. ")
-      },
-      _response => panic!("response is not ws. response. {:?}", _response)
-    }
-  }
+    let message = ws_stream.read_message().context("Fail to read message")?;
+    //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
+    let message = message.to_text().context("fail to parse text")?;
 
-  pub fn enable_reset_obniz_on_ws_disconnection(enable :bool){
-    let reset = request::WS{
-      reset_obniz_on_ws_disconnection: enable,
+    let res: Value = serde_json::from_str(message).context("Failed to parse json")?;
+    let json_redirect_host = &res[0]["ws"]["redirect"];
+    let redirect_host = match json_redirect_host.as_str() {
+        // ダブルクォートが入るので除去するためにstrに一旦する
+        Some(host) => host.to_string(),
+        None => return Err(anyhow!("Failed to get redirect host name")),
     };
-    let req = vec![reset];
-    //ws_stream.write_message
-  }
+    println!("redirect_host : {redirect_host}");
+    if redirect_host.is_empty() {
+        return Err(anyhow!("Redirect host name is empty"));
+    }
+    if !redirect_host.starts_with("wss://") {
+        return Err(anyhow!("Redirect host name is bad format"));
+    }
 
+    Ok(redirect_host)
 }
 
-
-
+// Legacy enums moved to display module - kept here for backward compatibility
+pub use crate::display::{DisplayRawColorDepth, ObnizDisplay, QrCorrectionType};
 
 #[cfg(test)]
 mod tests {
@@ -101,463 +401,23 @@ mod tests {
     fn it_works() {
         assert_eq!(2 + 2, 4);
     }
-
-
 }
 
-
-
-
-
-
-
-
-
-
-
-
-#[derive(Debug)]
-pub struct Io {
-}
-
-pub enum OutputType{
-  PushPull5v,
-  PushPull3v,
-  OpenDrain,
-}
-
-pub enum  PullType{
-  PullUp5v,
-  PullUp3v,
-  PullDown,
-  Float,
-}
-
-impl Io {
-  pub fn new(self,pin: u8) -> Io {
-    unimplemented!();
-    Io{}
-  }
-  pub fn get(self)->bool{
-    unimplemented!();
-  }
-  pub fn set(self,value: bool) {
-    unimplemented!();
-  }
-  pub fn deinit(self){
-    unimplemented!();
-  }
-  pub fn setAsInput(self,enable_stream_callback: bool){
-    // [
-    // {
-    //     "io0": {
-    //         "direction": "input",
-    //         "stream": false
-    //     }
-    // }
-    // ]
-    unimplemented!();
-  }
-
-
-  pub fn setAsOutput(self,value : bool){
-  //   [
-  //     {
-  //         "io0": {
-  //             "direction": "output",
-  //             "value": true
-  //         }
-  //     }
-  //   ]
-  }
-  
-  pub fn setOutputType(self,output_type : OutputType){
-    // [
-    // {
-    //     "io0": {
-    //         "output_type": "push-pull5v"
-    //     }
-    // }
-    // ]
-
-    unimplemented!();
-  }
-
-  pub fn setPullType(self,pull_type : PullType){
-  //   [
-  //     {
-  //         "io0": {
-  //             "pull_type": "pull-up5v"
-  //         }
-  //     }
-  //   ]
-      unimplemented!();
-  }
-  
-}
-
-pub struct IoAnimation {
-  // websocket 持たす?
-}
-
-impl IoAnimation {
-
-  pub fn new()-> IoAnimation{
-    unimplemented!();
-    IoAnimation{}
-  }
-
-  pub fn init_animation(){
-
-
-    unimplemented!();
-  }
-
-  pub fn change_state(){
-    // [
-    // {
-    //     "io": {
-    //         "animation": {
-    //             "name": "animation-1",
-    //             "status": "pause"
-    //         }
-    //     }
-    // }
-    // ]
-    unimplemented!();
-  }
-}
-
-pub struct AD {
-  pin: u8,
-} 
-
-impl AD {
-  pub fn new(pin: u8) -> AD {
-    AD { 
-      pin: pin
-    }
-  }
-
-  pub fn get(self) -> f64 {
-    unimplemented!();
-    0.0
-  }
-
-  pub fn deinit(self) {
-    // [
-    // {
-    //     "ad0": null
-    // }
-    // ]
-    unimplemented!();
-  }
-}
-
-pub struct PWM {
-  pwm_number: u8,
-}
-
-impl PWM {
-  pub fn new(pwm_number: u8) -> PWM {
-    unimplemented!();
-    PWM {
-      pwm_number: pwm_number
-    }
-  }
-
-  /// 
-  /// init pwm module 
-  /// pin 0-5
-  /// 
-  pub fn init(self, pin : u8) {
-    unimplemented!();
-  }
-
-  ///
-  /// unit : Hz
-  /// 1 ≤ value ≤ 80000000
-  pub fn setFrequency(self, freq : u64) {
-    unimplemented!();
-  }
-
-  
-  pub fn setPulseWidth(self, width_msec : u64) {
-    unimplemented!();
-  }
-
-  pub fn modulate(self, symbol_length: f64, bitArray: Vec<bool>){
-    // bitArray needs to be like [0, 1, 1, 0, 0, 1, 1, 0]
-    unimplemented!();
-  }
-
-  pub fn deinit(self) {
-    unimplemented!();
-  }
-
-}
-
-pub struct Uart{
-
-}
-
-impl Uart {
-  pub fn new() -> Uart {
-    unimplemented!();
-
-    Uart{}
-  }
-
-  pub fn init() {
-    unimplemented!();
-
-  }
-
-  pub fn send(data : Vec<u8>){
-    unimplemented!();
-
-
-  }
-
-  pub fn deinit() {
-    unimplemented!();
-  }
-  pub fn set_receive_callback(){
-    unimplemented!();
-  }
-}
-
-pub struct Spi {
-
-}
-
-impl Spi {
-
-  pub fn new() -> Spi {
-    unimplemented!();
-    Spi{}
-  }
-
-  pub fn init_as_master() {
-    unimplemented!();
-  }
-  
-  pub fn deinit() {
-    unimplemented!();
-
-  }
-
-  pub fn write(data : Vec<u8>) {
-    unimplemented!();
-  }
-  pub fn write_with_callback(data : Vec<u8>
-    //read call back
-  ) {
-    unimplemented!();
-  }
-
-  pub fn set_read_callback(){
-    unimplemented!();
-  }
-}
-
-
-struct I2c {
-
-}
-
-impl I2c {
-  pub fn new() -> I2c {
-    unimplemented!();
-    I2c{}
-  }
-  pub fn init_as_master() {unimplemented!();}
-  pub fn init_as_slave() {
-    unimplemented!();
-  }
-  pub fn write(address: u16 , 
-    address_bits : u8, //default 7
-    data : Vec<u8>) {
-    unimplemented!();
-  }
-  pub fn write_with_callback(address: u16 , 
-    address_bits : u8, //default 7
-    data : Vec<u8>
-    //read call back
-  ) {
-    unimplemented!();
-  }
-
-  pub fn set_read_callback(){
-    unimplemented!();
-  }
-}
-
-pub struct LogicAnalyzer{}
-
-impl LogicAnalyzer {
-  pub fn init() {
-    unimplemented!();
-  }
-
-  pub fn deinit(){
-    unimplemented!();
-  }
-
-  pub fn set_data_response_callback(){
-    unimplemented!();
-  }
-}
-
-pub struct Measurement {}
-
-impl Measurement {
-  /// set callback 
-  pub fn echo() {
-    unimplemented!();
-  }
-}
-
-pub struct Display{}
-pub enum QrCorrectionType {
-  L, M, Q, H,
-}
-pub enum DisplayRawCollorDepth {
-  OneBit,  FourBit, SixteenBit,
-}
-impl Display {
-  pub fn text(text : &str){
-    unimplemented!();
-  }
-
-  pub fn clear(){
-    unimplemented!();
-  }
-
-  pub fn qr(text : &str , correction_type : QrCorrectionType ){
-    unimplemented!();
-  }
-  pub fn raw(raw : Vec<u16> , color_depth: DisplayRawCollorDepth ){
-    unimplemented!();
-  }
-
-  pub fn pin_assign(pin: u8 , module_name :&str, pin_name :&str){
-    unimplemented!();
-  }
-}
-
-pub struct Switch {
-
-}
-
-pub enum SwitchState {
-  None,Push,Left,Right,
-}
-
-impl Switch {
-  pub fn get() -> SwitchState {
-    unimplemented!();
-  }
-}
-
-pub struct TCP {
-
-}
-
-impl TCP {
-  pub fn connect(port:u16, domain: &str) {
-    unimplemented!(); 
-  }
-
-  pub fn disconnect(){
-    unimplemented!();
-  }
-  pub fn write(data : Vec<u8>) {
-    unimplemented!();
-  }
-  pub fn write_with_callback(data : Vec<u8>
-    //read call back
-  ) {
-    unimplemented!();
-  }
-
-  pub fn set_read_callback(){
-    unimplemented!();
-  }
-}
-
-pub struct Wifi {}
-
-impl Wifi {
-  pub fn scan() -> Vec<u8> {
-    unimplemented!();
-  }
-}
-
-pub struct BleHci{
-
-}
-
-impl BleHci {
-  pub fn init(){
-    unimplemented!();
-  }
-
-  pub fn deinit(){
-    unimplemented!();
-  }
-
-  pub fn write(data : Vec<u8>) {
-    unimplemented!();
-  }
-  pub fn write_with_callback(data : Vec<u8>
-    //read call back
-  ) {
-    unimplemented!();
-  }
-
-  pub fn set_read_callback(){
-    unimplemented!();
-  }
-
-  pub fn advertisement_filter(
-    // TODO 引数考える
-  ){
-    unimplemented!();
-  }
-}
-
-struct Message{}
-impl Message {
-  
-  pub fn send(data: &str, to: Vec<String> ){
-    unimplemented!();
-  }
-
-  pub fn set_receive_callback(
-    // TODO 引数考える
-  ){
-    unimplemented!();
-  }
-
-}
-
-
-struct Plugin {}
-impl Plugin {
-  
-  pub fn send(data: Vec<u8> ){
-    unimplemented!();
-  }
-
-  pub fn set_receive_callback(
-    // TODO 引数考える
-  ){
-    unimplemented!();
-  }
-  
-}
-
-// debug は
-
-
+// The following modules are now implemented in separate files:
+// - IO: src/io.rs
+// - AD: src/ad.rs
+// - PWM: src/pwm.rs
+// - UART: src/uart.rs
+// - Switch: src/switch.rs
+// - Display: src/display.rs
+// - System: src/system.rs
+
+// Future features (not yet implemented):
+// - IoAnimation: Complex IO state animations
+// - TCP: Network communication
+// - SPI: Serial Peripheral Interface
+// - I2C: Inter-Integrated Circuit
+// - BLE HCI: Bluetooth Low Energy
+// - WiFi: WiFi management
+// - Logic Analyzer: Digital signal analysis
+// - Measurement: Advanced measurement tools

@@ -1,7 +1,15 @@
 **/target
 **/*.rs.bk
-**/.vscode
 **/.idea/**
 target/
 example/server.rs
 example/client.rs
+Cargo.lock
+
+# Obniz device ID files (security)
+examples/real_device_test.rs
+examples/comprehensive_device_test.rs
+examples/*_device_test.rs
+DEVICE_TEST_RESULTS.md
+device_test_*.md
+*device_id*
