@@ -28,12 +28,12 @@ async fn main() -> ObnizResult<()> {
     io.set_pin_as_input(1, false).await?;
 
     let state = io.get_pin(1).await?;
-    println!("Pin 1 state: {}", state);
+    println!("Pin 1 state: {state}");
 
     // Example 3: Stream mode with callback
     println!("Setting up stream mode on pin 2");
     io.set_pin_callback(2, |state| {
-        println!("Pin 2 changed to: {}", state);
+        println!("Pin 2 changed to: {state}");
     })
     .await?;
 
