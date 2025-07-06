@@ -389,25 +389,25 @@ fn test_error_types() {
     // Test error creation and display
     let pin_error = ObnizError::InvalidPin(15);
     assert_eq!(
-        format!("{}", pin_error),
+        format!("{pin_error}"),
         "Invalid pin number: 15. Valid range is 0-11"
     );
 
     let connection_error = ObnizError::Connection("Failed to connect".to_string());
     assert_eq!(
-        format!("{}", connection_error),
+        format!("{connection_error}"),
         "Connection error: Failed to connect"
     );
 
     let timeout_error = ObnizError::Timeout;
-    assert_eq!(format!("{}", timeout_error), "Operation timed out");
+    assert_eq!(format!("{timeout_error}"), "Operation timed out");
 
     let json_error = ObnizError::JsonParse("Invalid JSON".to_string());
-    assert_eq!(format!("{}", json_error), "JSON parse error: Invalid JSON");
+    assert_eq!(format!("{json_error}"), "JSON parse error: Invalid JSON");
 
     let io_error = ObnizError::IoOperation("Pin read failed".to_string());
     assert_eq!(
-        format!("{}", io_error),
+        format!("{io_error}"),
         "IO operation error: Pin read failed"
     );
 }
