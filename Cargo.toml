@@ -3,8 +3,14 @@ name = "obniz-rust"
 version = "0.1.0"
 authors = ["Takumi Okamoto <takumi1988okamoto@gmail.com>"]
 edition = "2018"
+description = "A Rust client library for Obniz IoT platform"
+license = "MIT"
+homepage = "https://github.com/MrBearing/obniz-rust"
+readme = "README.md"
+keywords = ["obniz", "iot", "websocket"]
+categories = ["api-bindings", "embedded"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 
 [dependencies]
 anyhow = { version = "1" }
