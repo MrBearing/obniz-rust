@@ -23,7 +23,7 @@ async fn main() -> ObnizResult<()> {
             println!("Hardware: {}", info.hardware);
             println!("Firmware: {}", info.version);
         }
-        Err(e) => println!("Could not get system info: {}", e),
+        Err(e) => println!("Could not get system info: {e}"),
     }
 
     // Configure auto-reset on disconnect
@@ -191,7 +191,7 @@ async fn main() -> ObnizResult<()> {
         // Read multiple analog sensors
         let sensor_readings = ad.read_all().await?;
 
-        println!("Reading {}: ", i);
+        println!("Reading {i}: ");
         for reading in sensor_readings.iter().take(4) {
             // Show first 4 channels
             let percentage = AdManager::voltage_to_percentage(reading.voltage);
@@ -205,7 +205,7 @@ async fn main() -> ObnizResult<()> {
         if let Some(first_reading) = sensor_readings.first() {
             let percentage = AdManager::voltage_to_percentage(first_reading.voltage);
             display.clear().await?;
-            display.text(&format!("Sensor: {:.1}%", percentage)).await?;
+            display.text(&format!("Sensor: {percentage:.1}%")).await?;
         }
 
         sleep(Duration::from_secs(1)).await;

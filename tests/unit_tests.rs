@@ -433,26 +433,26 @@ fn test_validation_functions() {
 fn test_key_generation_patterns() {
     // Test IO key generation pattern
     for i in 0..=11 {
-        let expected = format!("io{}", i);
-        assert_eq!(expected, format!("io{}", i));
+        let expected = format!("io{i}");
+        assert_eq!(expected, format!("io{i}"));
     }
 
     // Test AD key generation pattern
     for i in 0..=11 {
-        let expected = format!("ad{}", i);
-        assert_eq!(expected, format!("ad{}", i));
+        let expected = format!("ad{i}");
+        assert_eq!(expected, format!("ad{i}"));
     }
 
     // Test PWM key generation pattern
     for i in 0..=5 {
-        let expected = format!("pwm{}", i);
-        assert_eq!(expected, format!("pwm{}", i));
+        let expected = format!("pwm{i}");
+        assert_eq!(expected, format!("pwm{i}"));
     }
 
     // Test UART key generation pattern
     for i in 0..=2 {
-        let expected = format!("uart{}", i);
-        assert_eq!(expected, format!("uart{}", i));
+        let expected = format!("uart{i}");
+        assert_eq!(expected, format!("uart{i}"));
     }
 }
 
