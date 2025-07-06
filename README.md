@@ -1,5 +1,7 @@
 # Obniz Rust
 
+[![CI](https://github.com/MrBearing/obniz-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/MrBearing/obniz-rust/actions/workflows/ci.yml)
+
 🦀 A comprehensive Rust library for controlling obniz IoT devices via WebSocket communication.
 
 ## Features
