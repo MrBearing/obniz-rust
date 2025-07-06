@@ -350,8 +350,7 @@ impl Obniz {
 }
 
 pub async fn connect_async(obniz_id: &str) -> anyhow::Result<Obniz> {
-    let redirect_host =
-        get_redirect_host(obniz_id).context("failed to get redirect host name")?;
+    let redirect_host = get_redirect_host(obniz_id).context("failed to get redirect host name")?;
     let api_url = endpoint_url(&redirect_host, obniz_id)?;
     Obniz::new(obniz_id, api_url)
         .await
