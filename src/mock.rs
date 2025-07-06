@@ -135,7 +135,7 @@ impl MockWebSocketServer {
                         if let Some(nested) = first_item.get(key) {
                             if let Some(nested_obj) = nested.as_object() {
                                 for (nested_key, _) in nested_obj {
-                                    let compound_key = format!("{}.{}", key, nested_key);
+                                    let compound_key = format!("{key}.{nested_key}");
                                     if let Some(mock_msg) = handlers.get(&compound_key) {
                                         return Some(mock_msg.clone());
                                     }

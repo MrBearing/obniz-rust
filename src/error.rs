@@ -37,18 +37,18 @@ pub enum ObnizError {
 impl fmt::Display for ObnizError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ObnizError::Connection(msg) => write!(f, "Connection error: {}", msg),
-            ObnizError::WebSocket(msg) => write!(f, "WebSocket error: {}", msg),
-            ObnizError::IoOperation(msg) => write!(f, "IO operation error: {}", msg),
+            ObnizError::Connection(msg) => write!(f, "Connection error: {msg}"),
+            ObnizError::WebSocket(msg) => write!(f, "WebSocket error: {msg}"),
+            ObnizError::IoOperation(msg) => write!(f, "IO operation error: {msg}"),
             ObnizError::InvalidPin(pin) => {
-                write!(f, "Invalid pin number: {}. Valid range is 0-11", pin)
+                write!(f, "Invalid pin number: {pin}. Valid range is 0-11")
             }
-            ObnizError::JsonParse(msg) => write!(f, "JSON parse error: {}", msg),
+            ObnizError::JsonParse(msg) => write!(f, "JSON parse error: {msg}"),
             ObnizError::Timeout => write!(f, "Operation timed out"),
-            ObnizError::CallbackError(msg) => write!(f, "Callback error: {}", msg),
-            ObnizError::DeviceNotFound(id) => write!(f, "Device not found: {}", id),
+            ObnizError::CallbackError(msg) => write!(f, "Callback error: {msg}"),
+            ObnizError::DeviceNotFound(id) => write!(f, "Device not found: {id}"),
             ObnizError::PermissionDenied => write!(f, "Permission denied"),
-            ObnizError::Generic(msg) => write!(f, "Error: {}", msg),
+            ObnizError::Generic(msg) => write!(f, "Error: {msg}"),
         }
     }
 }
