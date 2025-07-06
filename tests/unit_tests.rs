@@ -406,10 +406,7 @@ fn test_error_types() {
     assert_eq!(format!("{json_error}"), "JSON parse error: Invalid JSON");
 
     let io_error = ObnizError::IoOperation("Pin read failed".to_string());
-    assert_eq!(
-        format!("{io_error}"),
-        "IO operation error: Pin read failed"
-    );
+    assert_eq!(format!("{io_error}"), "IO operation error: Pin read failed");
 }
 
 #[test]
