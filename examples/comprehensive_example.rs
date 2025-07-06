@@ -64,7 +64,7 @@ async fn main() -> ObnizResult<()> {
     // Configure pin 1 as input
     io.set_pin_as_input(1, false).await?;
     let pin1_state = io.get_pin(1).await?;
-    println!("✓ Pin 1 state: {}", pin1_state);
+    println!("✓ Pin 1 state: {pin1_state}");
 
     // Example 4: AD (Analog) Operations
     println!("\n--- AD (Analog) Operations ---");
@@ -123,7 +123,7 @@ async fn main() -> ObnizResult<()> {
 
     // Get current switch state
     let switch_state = switch.get_state().await?;
-    println!("✓ Switch state: {}", switch_state);
+    println!("✓ Switch state: {switch_state}");
 
     // Set up switch callbacks
     switch

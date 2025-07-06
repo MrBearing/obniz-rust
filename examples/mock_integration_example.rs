@@ -111,13 +111,13 @@ async fn test_io_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<()
     let get_request = json!([{"io0": "get"}]);
     let message = Message::from(get_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📥 IO get: {:?}", response);
+    println!("  📥 IO get: {response:?}");
 
     // Test IO set
     let set_request = json!([{"io1": true}]);
     let message = Message::from(set_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📤 IO set: {:?}", response);
+    println!("  📤 IO set: {response:?}");
 
     // Test IO config
     let config_request = json!([{
@@ -129,7 +129,7 @@ async fn test_io_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<()
     }]);
     let message = Message::from(config_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  ⚙️ IO config: {:?}", response);
+    println!("  ⚙️ IO config: {response:?}");
 
     Ok(())
 }
@@ -141,7 +141,7 @@ async fn test_ad_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<()
     let get_request = json!([{"ad0": "get"}]);
     let message = Message::from(get_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📊 AD get: {:?}", response);
+    println!("  📊 AD get: {response:?}");
 
     // Test AD stream
     let stream_request = json!([{
@@ -152,7 +152,7 @@ async fn test_ad_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<()
     }]);
     let message = Message::from(stream_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📈 AD stream: {:?}", response);
+    println!("  📈 AD stream: {response:?}");
 
     Ok(())
 }
@@ -170,7 +170,7 @@ async fn test_pwm_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<(
     }]);
     let message = Message::from(config_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  ⚡ PWM config: {:?}", response);
+    println!("  ⚡ PWM config: {response:?}");
 
     // Test PWM servo
     let servo_request = json!([{
@@ -182,7 +182,7 @@ async fn test_pwm_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<(
     }]);
     let message = Message::from(servo_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  🤖 PWM servo: {:?}", response);
+    println!("  🤖 PWM servo: {response:?}");
 
     Ok(())
 }
@@ -200,7 +200,7 @@ async fn test_uart_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<
     }]);
     let message = Message::from(config_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📡 UART config: {:?}", response);
+    println!("  📡 UART config: {response:?}");
 
     // Test UART write
     let write_request = json!([{
@@ -210,7 +210,7 @@ async fn test_uart_operations(server: &Arc<MockWebSocketServer>) -> ObnizResult<
     }]);
     let message = Message::from(write_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📝 UART write: {:?}", response);
+    println!("  📝 UART write: {response:?}");
 
     Ok(())
 }
@@ -226,7 +226,7 @@ async fn test_display_operations(server: &Arc<MockWebSocketServer>) -> ObnizResu
     }]);
     let message = Message::from(text_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  📝 Display text: {:?}", response);
+    println!("  📝 Display text: {response:?}");
 
     // Test display clear
     let clear_request = json!([{
@@ -236,7 +236,7 @@ async fn test_display_operations(server: &Arc<MockWebSocketServer>) -> ObnizResu
     }]);
     let message = Message::from(clear_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  🧹 Display clear: {:?}", response);
+    println!("  🧹 Display clear: {response:?}");
 
     Ok(())
 }
@@ -248,7 +248,7 @@ async fn test_switch_operations(server: &Arc<MockWebSocketServer>) -> ObnizResul
     let get_request = json!([{"switch": "get"}]);
     let message = Message::from(get_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  🔘 Switch get: {:?}", response);
+    println!("  🔘 Switch get: {response:?}");
 
     // Test switch callback
     let callback_request = json!([{
@@ -258,7 +258,7 @@ async fn test_switch_operations(server: &Arc<MockWebSocketServer>) -> ObnizResul
     }]);
     let message = Message::from(callback_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  🔔 Switch callback: {:?}", response);
+    println!("  🔔 Switch callback: {response:?}");
 
     Ok(())
 }
@@ -274,7 +274,7 @@ async fn test_system_operations(server: &Arc<MockWebSocketServer>) -> ObnizResul
     }]);
     let message = Message::from(info_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  ℹ️ System info: {:?}", response);
+    println!("  ℹ️ System info: {response:?}");
 
     // Test system reset
     let reset_request = json!([{
@@ -284,7 +284,7 @@ async fn test_system_operations(server: &Arc<MockWebSocketServer>) -> ObnizResul
     }]);
     let message = Message::from(reset_request.to_string());
     let response = server.process_message(message).await?;
-    println!("  🔄 System reset: {:?}", response);
+    println!("  🔄 System reset: {response:?}");
 
     Ok(())
 }
@@ -297,7 +297,7 @@ async fn test_callback_system(mock_device: &MockObniz) -> ObnizResult<()> {
     let callback_triggered_clone = callback_triggered.clone();
 
     mock_device.register_callback("test_callback".to_string(), move |data| {
-        println!("  🔔 Callback triggered with data: {:?}", data);
+        println!("  🔔 Callback triggered with data: {data:?}");
         callback_triggered_clone.store(true, Ordering::SeqCst);
     })?;
 
