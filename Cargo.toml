@@ -11,22 +11,21 @@ keywords = ["obniz", "iot", "websocket"]
 categories = ["api-bindings", "embedded"]
 
 
-
 [dependencies]
 anyhow = { version = "1" }
 futures = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["async-await", "sink", "std"] }
 futures-channel = "0.3"
 url = "2.2.2"
-tokio =  { version = "1.27.0", features = ["full"] }
-tungstenite = {version="0.19.0",features=["native-tls"]}
-tokio-tungstenite = { version = "*", features = ["native-tls"] }
+tokio =  { version = "1.46.1", features = ["full"] }
+tungstenite = {version="0.27.0",features=["native-tls"]}
+tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
 
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "*"
+serde_json = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
-mockall = "0.12"
+mockall = "0.13.1"
 async-trait = "0.1"
