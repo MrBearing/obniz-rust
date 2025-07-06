@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+use crate::error::{validate_pin, ObnizError, ObnizResult};
 use crate::obniz::Obniz;
-use crate::error::{ObnizError, ObnizResult, validate_pin};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -56,40 +56,53 @@ impl IoPin {
     /// Get the current state of the pin
     pub async fn get(&self) -> ObnizResult<bool> {
         validate_pin(self.pin)?;
-        
+
         let pin_key = self.pin_key();
         let request = json!([{&pin_key: "get"}]);
         let message = Message::from(request.to_string());
-        
-        let response = self.obniz.send_await_response(message, pin_key.clone()).await.map_err(|e| ObnizError::Connection(e.to_string()))?;
-        
+
+        let response = self
+            .obniz
+            .send_await_response(message, pin_key.clone())
+            .await
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
+
         // Parse the response to extract the boolean value
         // Response format is typically [{"io1": false}]
         if let Some(array) = response.as_array() {
             if let Some(first_item) = array.first() {
                 if let Some(value) = first_item.get(&pin_key) {
-                    return value.as_bool().ok_or_else(|| ObnizError::IoOperation("Invalid response format".to_string()));
+                    return value.as_bool().ok_or_else(|| {
+                        ObnizError::IoOperation("Invalid response format".to_string())
+                    });
                 }
             }
         }
-        
+
         // Fallback: try direct object access
         if let Some(value) = response.get(&pin_key) {
-            value.as_bool().ok_or_else(|| ObnizError::IoOperation("Invalid response format".to_string()))
+            value
+                .as_bool()
+                .ok_or_else(|| ObnizError::IoOperation("Invalid response format".to_string()))
         } else {
-            Err(ObnizError::IoOperation(format!("No response for pin {}", self.pin)))
+            Err(ObnizError::IoOperation(format!(
+                "No response for pin {}",
+                self.pin
+            )))
         }
     }
 
     /// Set the pin to a specific value
     pub async fn set(&self, value: bool) -> ObnizResult<()> {
         validate_pin(self.pin)?;
-        
+
         let pin_key = self.pin_key();
         let request = json!([{&pin_key: value}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message).map_err(|e| ObnizError::Connection(e.to_string()))?;
+
+        self.obniz
+            .send_message(message)
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 
@@ -119,8 +132,10 @@ impl IoPin {
 
         let request = json!([{&pin_key: pin_config}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message).map_err(|e| ObnizError::Connection(e.to_string()))?;
+
+        self.obniz
+            .send_message(message)
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 
@@ -156,8 +171,10 @@ impl IoPin {
         let pin_key = self.pin_key();
         let request = json!([{&pin_key: {"output_type": output_type}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message).map_err(|e| ObnizError::Connection(e.to_string()))?;
+
+        self.obniz
+            .send_message(message)
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 
@@ -167,8 +184,10 @@ impl IoPin {
         let pin_key = self.pin_key();
         let request = json!([{&pin_key: {"pull_type": pull_type}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message).map_err(|e| ObnizError::Connection(e.to_string()))?;
+
+        self.obniz
+            .send_message(message)
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 
@@ -181,19 +200,21 @@ impl IoPin {
         validate_pin(self.pin)?;
         // First, enable stream mode for this pin
         self.set_as_input(true).await?;
-        
+
         let pin_key = self.pin_key();
         let pin_key_clone = pin_key.clone();
-        
-        self.obniz.register_callback(pin_key, move |response| {
-            // Parse the response to extract the pin value
-            if let Some(value) = response.get(&pin_key_clone) {
-                if let Some(bool_value) = value.as_bool() {
-                    callback(bool_value);
+
+        self.obniz
+            .register_callback(pin_key, move |response| {
+                // Parse the response to extract the pin value
+                if let Some(value) = response.get(&pin_key_clone) {
+                    if let Some(bool_value) = value.as_bool() {
+                        callback(bool_value);
+                    }
                 }
-            }
-        }).map_err(|e| ObnizError::CallbackError(e.to_string()))?;
-        
+            })
+            .map_err(|e| ObnizError::CallbackError(e.to_string()))?;
+
         Ok(())
     }
 
@@ -211,7 +232,9 @@ impl IoPin {
     pub fn remove_callback(&self) -> ObnizResult<()> {
         validate_pin(self.pin)?;
         let pin_key = self.pin_key();
-        self.obniz.unregister_callback(pin_key).map_err(|e| ObnizError::CallbackError(e.to_string()))
+        self.obniz
+            .unregister_callback(pin_key)
+            .map_err(|e| ObnizError::CallbackError(e.to_string()))
     }
 
     /// Deinitialize the pin
@@ -220,8 +243,10 @@ impl IoPin {
         let pin_key = self.pin_key();
         let request = json!([{&pin_key: null}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message).map_err(|e| ObnizError::Connection(e.to_string()))?;
+
+        self.obniz
+            .send_message(message)
+            .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 }
@@ -304,7 +329,7 @@ mod tests {
         assert!(validate_pin(0).is_ok());
         assert!(validate_pin(5).is_ok());
         assert!(validate_pin(11).is_ok());
-        
+
         // Invalid pins
         assert!(validate_pin(12).is_err());
         assert!(validate_pin(255).is_err());
@@ -315,7 +340,7 @@ mod tests {
     //     let obniz = create_mock_obniz();
     //     let pin = IoPin::new(5, obniz);
     //     assert_eq!(pin.pin_key(), "io5");
-    //     
+    //
     //     let pin = IoPin::new(0, obniz);
     //     assert_eq!(pin.pin_key(), "io0");
     // }
@@ -329,7 +354,7 @@ mod tests {
             pull_type: Some(PullType::PullUp5v),
             stream: Some(false),
         };
-        
+
         // Test that the config can be created without errors
         assert_eq!(config.direction, Direction::Output);
         assert_eq!(config.value, Some(true));
@@ -338,11 +363,11 @@ mod tests {
     #[test]
     fn test_output_type_serialization() {
         use serde_json;
-        
+
         let output_type = OutputType::PushPull5v;
         let serialized = serde_json::to_string(&output_type).unwrap();
         assert_eq!(serialized, "\"push-pull5v\"");
-        
+
         let output_type = OutputType::OpenDrain;
         let serialized = serde_json::to_string(&output_type).unwrap();
         assert_eq!(serialized, "\"open-drain\"");
@@ -351,11 +376,11 @@ mod tests {
     #[test]
     fn test_pull_type_serialization() {
         use serde_json;
-        
+
         let pull_type = PullType::PullUp5v;
         let serialized = serde_json::to_string(&pull_type).unwrap();
         assert_eq!(serialized, "\"pull-up5v\"");
-        
+
         let pull_type = PullType::Float;
         let serialized = serde_json::to_string(&pull_type).unwrap();
         assert_eq!(serialized, "\"float\"");
@@ -364,11 +389,11 @@ mod tests {
     #[test]
     fn test_direction_serialization() {
         use serde_json;
-        
+
         let direction = Direction::Input;
         let serialized = serde_json::to_string(&direction).unwrap();
         assert_eq!(serialized, "\"input\"");
-        
+
         let direction = Direction::Output;
         let serialized = serde_json::to_string(&direction).unwrap();
         assert_eq!(serialized, "\"output\"");

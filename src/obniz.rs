@@ -10,18 +10,19 @@ use futures_util::StreamExt;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio_tungstenite::{
-    connect_async as ws_connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+    connect_async as ws_connect_async, tungstenite::protocol::Message, MaybeTlsStream,
+    WebSocketStream,
 };
 
 use serde_json::Value;
 
-use crate::io::IoManager;
-use crate::display::DisplayManager;
-use crate::system::SystemManager;
 use crate::ad::AdManager;
+use crate::display::DisplayManager;
+use crate::io::IoManager;
 use crate::pwm::PwmManager;
-use crate::uart::UartManager;
 use crate::switch::SwitchManager;
+use crate::system::SystemManager;
+use crate::uart::UartManager;
 
 const OBNIZE_WEBSOKET_HOST: &str = "wss://obniz.io";
 pub type ObnizWSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -53,9 +54,17 @@ pub struct Obniz {
 
 #[derive(Debug)]
 pub enum ObnizCommand {
-    Send { message: Message, response_key: Option<String> },
-    RegisterCallback { key: String, callback: CallbackType },
-    UnregisterCallback { key: String },
+    Send {
+        message: Message,
+        response_key: Option<String>,
+    },
+    RegisterCallback {
+        key: String,
+        callback: CallbackType,
+    },
+    UnregisterCallback {
+        key: String,
+    },
 }
 
 impl Obniz {
@@ -69,7 +78,7 @@ impl Obniz {
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
         let callbacks_clone = callbacks.clone();
-        
+
         // Spawn WebSocket handler task
         tokio::spawn(async move {
             Self::websocket_handler(write, read, cmd_receiver, callbacks_clone).await;
@@ -94,7 +103,7 @@ impl Obniz {
                     match cmd {
                         Some(ObnizCommand::Send { message, response_key: _ }) => {
                             if let Err(e) = write.send(message).await {
-                                eprintln!("Failed to send message: {}", e);
+                                eprintln!("Failed to send message: {e}");
                             }
                         }
                         Some(ObnizCommand::RegisterCallback { key, callback }) => {
@@ -112,11 +121,11 @@ impl Obniz {
                             match result {
                                 std::result::Result::Ok(msg) => {
                                     if let Err(e) = Self::handle_incoming_message(msg, &callbacks).await {
-                                        eprintln!("Failed to handle message: {}", e);
+                                        eprintln!("Failed to handle message: {e}");
                                     }
                                 }
                                 std::result::Result::Err(e) => {
-                                    eprintln!("WebSocket error: {}", e);
+                                    eprintln!("WebSocket error: {e}");
                                 }
                             }
                         }
@@ -131,42 +140,44 @@ impl Obniz {
         message: Message,
         callbacks: &Arc<RwLock<HashMap<String, CallbackType>>>,
     ) -> anyhow::Result<()> {
-        let text = message.to_text().context("Failed to parse message as text")?;
+        let text = message
+            .to_text()
+            .context("Failed to parse message as text")?;
         let value: Value = serde_json::from_str(text).context("Failed to parse JSON")?;
-        
+
         let mut keys_to_remove = Vec::new();
-        
+
         // Route message to appropriate callback
         {
             let callbacks_guard = callbacks.read().await;
-            
+
             // Check if it's an array response (typical obniz format)
             if let Some(array) = value.as_array() {
                 for item in array {
-                    let mut remove_keys = Self::route_message_to_callback(item, &callbacks_guard).await?;
+                    let mut remove_keys =
+                        Self::route_message_to_callback(item, &callbacks_guard).await?;
                     keys_to_remove.append(&mut remove_keys);
                 }
             } else {
-                let mut remove_keys = Self::route_message_to_callback(&value, &callbacks_guard).await?;
+                let mut remove_keys =
+                    Self::route_message_to_callback(&value, &callbacks_guard).await?;
                 keys_to_remove.append(&mut remove_keys);
             }
         }
-        
+
         // Handle OneShot callbacks - send response and remove from map
         if !keys_to_remove.is_empty() {
             let mut callbacks_guard = callbacks.write().await;
             for key in keys_to_remove {
-                if let Some(callback) = callbacks_guard.remove(&key) {
-                    if let CallbackType::OneShot(sender) = callback {
-                        // Send the response through the channel
-                        if sender.send(value.clone()).is_err() {
-                            eprintln!("Failed to send response through oneshot channel for key: {}", key);
-                        }
+                if let Some(CallbackType::OneShot(sender)) = callbacks_guard.remove(&key) {
+                    // Send the response through the channel
+                    if sender.send(value.clone()).is_err() {
+                        eprintln!("Failed to send response through oneshot channel for key: {key}");
                     }
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -175,10 +186,10 @@ impl Obniz {
         callbacks: &HashMap<String, CallbackType>,
     ) -> anyhow::Result<Vec<String>> {
         let mut keys_to_remove = Vec::new();
-        
+
         // Extract callback key from message structure
         let callback_key = Self::extract_callback_key(message);
-        
+
         if let Some(key) = callback_key {
             if let Some(callback) = callbacks.get(&key) {
                 match callback {
@@ -193,7 +204,7 @@ impl Obniz {
                 }
             }
         }
-        
+
         Ok(keys_to_remove)
     }
 
@@ -204,47 +215,56 @@ impl Obniz {
                 if let Some(obj) = first_item.as_object() {
                     for (key, _) in obj {
                         // Check for various obniz response patterns
-                        if key.starts_with("io") || 
-                           key.starts_with("ad") || 
-                           key.starts_with("pwm") || 
-                           key.starts_with("uart") || 
-                           key == "display" || 
-                           key == "switch" || 
-                           key == "system" {
+                        if key.starts_with("io")
+                            || key.starts_with("ad")
+                            || key.starts_with("pwm")
+                            || key.starts_with("uart")
+                            || key == "display"
+                            || key == "switch"
+                            || key == "system"
+                        {
                             return Some(key.clone());
                         }
                     }
                 }
             }
         }
-        
+
         // Check for direct object responses (fallback)
         if let Some(obj) = message.as_object() {
             for (key, _) in obj {
-                if key.starts_with("io") || 
-                   key.starts_with("ad") || 
-                   key.starts_with("pwm") || 
-                   key.starts_with("uart") || 
-                   key == "display" || 
-                   key == "switch" || 
-                   key == "system" {
+                if key.starts_with("io")
+                    || key.starts_with("ad")
+                    || key.starts_with("pwm")
+                    || key.starts_with("uart")
+                    || key == "display"
+                    || key == "switch"
+                    || key == "system"
+                {
                     return Some(key.clone());
                 }
             }
         }
-        
+
         None
     }
 
     pub fn send_message(&self, msg: Message) -> anyhow::Result<()> {
         self.sender
-            .send(ObnizCommand::Send { message: msg, response_key: None })
+            .send(ObnizCommand::Send {
+                message: msg,
+                response_key: None,
+            })
             .context("Failed to send command")
     }
 
-    pub async fn send_await_response(&self, msg: Message, response_key: String) -> anyhow::Result<Value> {
+    pub async fn send_await_response(
+        &self,
+        msg: Message,
+        response_key: String,
+    ) -> anyhow::Result<Value> {
         let (tx, rx) = oneshot::channel::<Value>();
-        
+
         // Register callback for response
         self.sender
             .send(ObnizCommand::RegisterCallback {
@@ -252,15 +272,18 @@ impl Obniz {
                 callback: CallbackType::OneShot(tx),
             })
             .context("Failed to register callback")?;
-        
+
         // Send message
         self.sender
-            .send(ObnizCommand::Send { message: msg, response_key: Some(response_key.clone()) })
+            .send(ObnizCommand::Send {
+                message: msg,
+                response_key: Some(response_key.clone()),
+            })
             .context("Failed to send message")?;
-        
+
         // Wait for response (the callback will be automatically removed after receiving)
         let result = rx.await.context("Failed to receive response")?;
-        
+
         Ok(result)
     }
 
@@ -324,9 +347,8 @@ impl Obniz {
 }
 
 pub async fn connect_async(obniz_id: &str) -> anyhow::Result<Obniz> {
-    let redirect_host =
-        get_redirect_host(&(obniz_id.to_string())).context("failed to get redirect host name")?;
-    let api_url = endpoint_url(&redirect_host, &obniz_id)?;
+    let redirect_host = get_redirect_host(obniz_id).context("failed to get redirect host name")?;
+    let api_url = endpoint_url(&redirect_host, obniz_id)?;
     Obniz::new(obniz_id, api_url)
         .await
         .context("failed to create Obniz object")
@@ -339,11 +361,11 @@ fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
         return Err(anyhow!("Illegal url, host needs to start with 'wss://'"));
     }
 
-    let endpoint = format!("{}/obniz/{}/ws/1", host, obniz_id);
+    let endpoint = format!("{host}/obniz/{obniz_id}/ws/1");
     url::Url::parse(&endpoint).context("Failed to parse endpoint url")
 }
 
-fn get_redirect_host(obniz_id: &String) -> anyhow::Result<String> {
+fn get_redirect_host(obniz_id: &str) -> anyhow::Result<String> {
     let url = endpoint_url(OBNIZE_WEBSOKET_HOST, obniz_id)?;
     //Websokcet接続
     let (mut ws_stream, _response) = tungstenite::connect(url).context("Failed to connect")?;
@@ -370,6 +392,8 @@ fn get_redirect_host(obniz_id: &String) -> anyhow::Result<String> {
     Ok(redirect_host)
 }
 
+// Legacy enums moved to display module - kept here for backward compatibility
+pub use crate::display::{DisplayRawColorDepth, ObnizDisplay, QrCorrectionType};
 
 #[cfg(test)]
 mod tests {
@@ -379,12 +403,9 @@ mod tests {
     }
 }
 
-// Legacy enums moved to display module - kept here for backward compatibility
-pub use crate::display::{QrCorrectionType, DisplayRawColorDepth as DisplayRawColorDepth, ObnizDisplay};
-
 // The following modules are now implemented in separate files:
 // - IO: src/io.rs
-// - AD: src/ad.rs  
+// - AD: src/ad.rs
 // - PWM: src/pwm.rs
 // - UART: src/uart.rs
 // - Switch: src/switch.rs

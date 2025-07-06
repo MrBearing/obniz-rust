@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use crate::obniz::Obniz;
 use crate::error::{ObnizError, ObnizResult};
+use crate::obniz::Obniz;
 
 /// QR code error correction levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -65,8 +65,9 @@ impl DisplayManager {
 
         let request = json!([{"display": {"text": text}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -74,8 +75,9 @@ impl DisplayManager {
     pub async fn clear(&self) -> ObnizResult<()> {
         let request = json!([{"display": {"clear": true}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -94,8 +96,9 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -106,19 +109,20 @@ impl DisplayManager {
         }
 
         if config.width == 0 || config.height == 0 {
-            return Err(ObnizError::Generic("Width and height must be greater than 0".to_string()));
+            return Err(ObnizError::Generic(
+                "Width and height must be greater than 0".to_string(),
+            ));
         }
 
         let expected_length = match config.color_depth {
-            DisplayRawColorDepth::OneBit => (config.width * config.height + 7) / 8,
-            DisplayRawColorDepth::FourBit => (config.width * config.height + 1) / 2,
+            DisplayRawColorDepth::OneBit => (config.width * config.height).div_ceil(8),
+            DisplayRawColorDepth::FourBit => (config.width * config.height).div_ceil(2),
             DisplayRawColorDepth::SixteenBit => config.width * config.height,
         };
 
         if config.data.len() != expected_length as usize {
             return Err(ObnizError::Generic(format!(
-                "Data length mismatch. Expected {} but got {}",
-                expected_length,
+                "Data length mismatch. Expected {expected_length} but got {}",
                 config.data.len()
             )));
         }
@@ -134,15 +138,18 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Set display brightness (0-100)
     pub async fn brightness(&self, level: u8) -> ObnizResult<()> {
         if level > 100 {
-            return Err(ObnizError::Generic("Brightness level must be between 0-100".to_string()));
+            return Err(ObnizError::Generic(
+                "Brightness level must be between 0-100".to_string(),
+            ));
         }
 
         let request = json!([{
@@ -151,15 +158,18 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Set display contrast (0-100)
     pub async fn contrast(&self, level: u8) -> ObnizResult<()> {
         if level > 100 {
-            return Err(ObnizError::Generic("Contrast level must be between 0-100".to_string()));
+            return Err(ObnizError::Generic(
+                "Contrast level must be between 0-100".to_string(),
+            ));
         }
 
         let request = json!([{
@@ -168,15 +178,18 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Assign pins for display modules
     pub async fn pin_assign(&self, assignments: Vec<PinAssignment>) -> ObnizResult<()> {
         if assignments.is_empty() {
-            return Err(ObnizError::Generic("Pin assignments cannot be empty".to_string()));
+            return Err(ObnizError::Generic(
+                "Pin assignments cannot be empty".to_string(),
+            ));
         }
 
         for assignment in &assignments {
@@ -184,7 +197,9 @@ impl DisplayManager {
                 return Err(ObnizError::InvalidPin(assignment.pin));
             }
             if assignment.module_name.is_empty() || assignment.pin_name.is_empty() {
-                return Err(ObnizError::Generic("Module name and pin name cannot be empty".to_string()));
+                return Err(ObnizError::Generic(
+                    "Module name and pin name cannot be empty".to_string(),
+                ));
             }
         }
 
@@ -197,8 +212,9 @@ impl DisplayManager {
 
         let request = json!([pin_config]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -214,8 +230,9 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -233,15 +250,26 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Draw a rectangle
-    pub async fn rect(&self, x: u16, y: u16, width: u16, height: u16, filled: bool, color: bool) -> ObnizResult<()> {
+    pub async fn rect(
+        &self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        filled: bool,
+        color: bool,
+    ) -> ObnizResult<()> {
         if width == 0 || height == 0 {
-            return Err(ObnizError::Generic("Width and height must be greater than 0".to_string()));
+            return Err(ObnizError::Generic(
+                "Width and height must be greater than 0".to_string(),
+            ));
         }
 
         let request = json!([{
@@ -257,15 +285,25 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Draw a circle
-    pub async fn circle(&self, x: u16, y: u16, radius: u16, filled: bool, color: bool) -> ObnizResult<()> {
+    pub async fn circle(
+        &self,
+        x: u16,
+        y: u16,
+        radius: u16,
+        filled: bool,
+        color: bool,
+    ) -> ObnizResult<()> {
         if radius == 0 {
-            return Err(ObnizError::Generic("Radius must be greater than 0".to_string()));
+            return Err(ObnizError::Generic(
+                "Radius must be greater than 0".to_string(),
+            ));
         }
 
         let request = json!([{
@@ -280,15 +318,18 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
     /// Set text size
     pub async fn text_size(&self, size: u8) -> ObnizResult<()> {
         if size == 0 {
-            return Err(ObnizError::Generic("Text size must be greater than 0".to_string()));
+            return Err(ObnizError::Generic(
+                "Text size must be greater than 0".to_string(),
+            ));
         }
 
         let request = json!([{
@@ -297,8 +338,9 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -313,8 +355,9 @@ impl DisplayManager {
             }
         }]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 }
@@ -332,46 +375,36 @@ impl ObnizDisplay for Obniz {
     fn display_text(&self, text: &str) -> ObnizResult<()> {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ObnizError::Generic("No tokio runtime available".to_string()))?;
-        
-        rt.block_on(async {
-            self.display().text(text).await
-        })
+
+        rt.block_on(async { self.display().text(text).await })
     }
 
     fn display_clear(&self) -> ObnizResult<()> {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ObnizError::Generic("No tokio runtime available".to_string()))?;
-        
-        rt.block_on(async {
-            self.display().clear().await
-        })
+
+        rt.block_on(async { self.display().clear().await })
     }
 
     fn display_qr(&self, text: &str, correction_type: QrCorrectionType) -> ObnizResult<()> {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ObnizError::Generic("No tokio runtime available".to_string()))?;
-        
-        rt.block_on(async {
-            self.display().qr(text, correction_type).await
-        })
+
+        rt.block_on(async { self.display().qr(text, correction_type).await })
     }
 
     fn display_raw(&self, config: RawDisplayConfig) -> ObnizResult<()> {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ObnizError::Generic("No tokio runtime available".to_string()))?;
-        
-        rt.block_on(async {
-            self.display().raw(config).await
-        })
+
+        rt.block_on(async { self.display().raw(config).await })
     }
 
     fn display_pin_assign(&self, assignments: Vec<PinAssignment>) -> ObnizResult<()> {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ObnizError::Generic("No tokio runtime available".to_string()))?;
-        
-        rt.block_on(async {
-            self.display().pin_assign(assignments).await
-        })
+
+        rt.block_on(async { self.display().pin_assign(assignments).await })
     }
 }
 
@@ -382,11 +415,11 @@ mod tests {
     #[test]
     fn test_qr_correction_type_serialization() {
         use serde_json;
-        
+
         let correction = QrCorrectionType::Low;
         let serialized = serde_json::to_string(&correction).unwrap();
         assert_eq!(serialized, "\"L\"");
-        
+
         let correction = QrCorrectionType::High;
         let serialized = serde_json::to_string(&correction).unwrap();
         assert_eq!(serialized, "\"H\"");
@@ -395,11 +428,11 @@ mod tests {
     #[test]
     fn test_color_depth_serialization() {
         use serde_json;
-        
+
         let depth = DisplayRawColorDepth::OneBit;
         let serialized = serde_json::to_string(&depth).unwrap();
         assert_eq!(serialized, "\"1\"");
-        
+
         let depth = DisplayRawColorDepth::SixteenBit;
         let serialized = serde_json::to_string(&depth).unwrap();
         assert_eq!(serialized, "\"16\"");
@@ -425,7 +458,7 @@ mod tests {
             module_name: "spi".to_string(),
             pin_name: "mosi".to_string(),
         };
-        
+
         assert_eq!(assignment.pin, 5);
         assert_eq!(assignment.module_name, "spi");
         assert_eq!(assignment.pin_name, "mosi");
