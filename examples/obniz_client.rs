@@ -39,9 +39,7 @@ fn main() {
     let json =
         serde_json::json!([{"display":{"clear":true}}, {"display":{"text":"Works fine...."}}]);
     let message = Message::text(json.to_string());
-    ws_stream
-        .send(message)
-        .expect("Fail to send message");
+    ws_stream.send(message).expect("Fail to send message");
 }
 
 // How to run the

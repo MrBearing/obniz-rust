@@ -368,7 +368,8 @@ fn endpoint_url(host: &str, obniz_id: &str) -> anyhow::Result<url::Url> {
 fn get_redirect_host(obniz_id: &str) -> anyhow::Result<String> {
     let url = endpoint_url(OBNIZE_WEBSOKET_HOST, obniz_id)?;
     //Websokcet接続
-    let (mut ws_stream, _response) = tungstenite::connect(url.as_str()).context("Failed to connect")?;
+    let (mut ws_stream, _response) =
+        tungstenite::connect(url.as_str()).context("Failed to connect")?;
 
     let message = ws_stream.read().context("Fail to read message")?;
     //　接続するとリダイレクトアドレスが入ったjsonが返るのでパースする
