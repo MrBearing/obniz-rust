@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use crate::obniz::Obniz;
 use crate::error::{ObnizError, ObnizResult};
+use crate::obniz::Obniz;
 
 /// Switch states for obniz board switch
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,10 +59,13 @@ impl SwitchManager {
     pub async fn get_state(&self) -> ObnizResult<SwitchState> {
         let request = json!([{"switch": "get"}]);
         let message = Message::from(request.to_string());
-        
-        let response = self.obniz.send_await_response(message, "switch".to_string()).await
+
+        let response = self
+            .obniz
+            .send_await_response(message, "switch".to_string())
+            .await
             .map_err(|e| ObnizError::Connection(e.to_string()))?;
-        
+
         // Parse the response to extract the switch state
         // Response format is typically [{"switch": {"state": "none", "action": "get"}}]
         if let Some(array) = response.as_array() {
@@ -75,17 +78,21 @@ impl SwitchManager {
                 }
             }
         }
-        
+
         // Fallback: try direct object access
         if let Some(switch_data) = response.get("switch") {
             if let Some(state_value) = switch_data.get("state") {
                 serde_json::from_value(state_value.clone())
                     .map_err(|e| ObnizError::JsonParse(e.to_string()))
             } else {
-                Err(ObnizError::Generic("No state field in switch response".to_string()))
+                Err(ObnizError::Generic(
+                    "No state field in switch response".to_string(),
+                ))
             }
         } else {
-            Err(ObnizError::Generic("No switch data in response".to_string()))
+            Err(ObnizError::Generic(
+                "No switch data in response".to_string(),
+            ))
         }
     }
 
@@ -106,14 +113,18 @@ impl SwitchManager {
     where
         F: Fn(SwitchState, SwitchAction) + Send + Sync + 'static,
     {
-        self.obniz.register_callback("switch".to_string(), move |response| {
-            if let Some(switch_data) = response.get("switch") {
-                if let Ok(switch_response) = serde_json::from_value::<SwitchResponse>(switch_data.clone()) {
-                    callback(switch_response.state, switch_response.action);
+        self.obniz
+            .register_callback("switch".to_string(), move |response| {
+                if let Some(switch_data) = response.get("switch") {
+                    if let Ok(switch_response) =
+                        serde_json::from_value::<SwitchResponse>(switch_data.clone())
+                    {
+                        callback(switch_response.state, switch_response.action);
+                    }
                 }
-            }
-        }).map_err(|e| ObnizError::CallbackError(e.to_string()))?;
-        
+            })
+            .map_err(|e| ObnizError::CallbackError(e.to_string()))?;
+
         Ok(())
     }
 
@@ -126,7 +137,8 @@ impl SwitchManager {
             if state == SwitchState::Push && action == SwitchAction::Push {
                 callback();
             }
-        }).await
+        })
+        .await
     }
 
     /// Register callback for release events
@@ -138,7 +150,8 @@ impl SwitchManager {
             if state == SwitchState::None && action == SwitchAction::Release {
                 callback();
             }
-        }).await
+        })
+        .await
     }
 
     /// Register callback for left direction events
@@ -150,7 +163,8 @@ impl SwitchManager {
             if state == SwitchState::Left && action == SwitchAction::Left {
                 callback();
             }
-        }).await
+        })
+        .await
     }
 
     /// Register callback for right direction events
@@ -162,7 +176,8 @@ impl SwitchManager {
             if state == SwitchState::Right && action == SwitchAction::Right {
                 callback();
             }
-        }).await
+        })
+        .await
     }
 
     /// Register callback for any press event (push, left, or right)
@@ -174,22 +189,28 @@ impl SwitchManager {
             if state != SwitchState::None {
                 callback(state.clone());
             }
-        }).await
+        })
+        .await
     }
 
     /// Remove switch callback
     pub fn remove_callback(&self) -> ObnizResult<()> {
-        self.obniz.unregister_callback("switch".to_string())
+        self.obniz
+            .unregister_callback("switch".to_string())
             .map_err(|e| ObnizError::CallbackError(e.to_string()))
     }
 
     /// Wait for specific switch state (blocking until state is reached)
-    pub async fn wait_for_state(&self, target_state: SwitchState, timeout_ms: Option<u64>) -> ObnizResult<()> {
-        use tokio::time::{sleep, Duration, timeout};
-        
+    pub async fn wait_for_state(
+        &self,
+        target_state: SwitchState,
+        timeout_ms: Option<u64>,
+    ) -> ObnizResult<()> {
+        use tokio::time::{sleep, timeout, Duration};
+
         let check_interval = Duration::from_millis(50);
         let max_duration = timeout_ms.map(Duration::from_millis);
-        
+
         let wait_future = async {
             loop {
                 let current_state = self.get_state().await?;
@@ -199,23 +220,22 @@ impl SwitchManager {
                 sleep(check_interval).await;
             }
         };
-        
+
         match max_duration {
-            Some(duration) => {
-                timeout(duration, wait_future).await
-                    .map_err(|_| ObnizError::Timeout)?
-            }
+            Some(duration) => timeout(duration, wait_future)
+                .await
+                .map_err(|_| ObnizError::Timeout)?,
             None => wait_future.await,
         }
     }
 
     /// Wait for any press event
     pub async fn wait_for_press(&self, timeout_ms: Option<u64>) -> ObnizResult<SwitchState> {
-        use tokio::time::{sleep, Duration, timeout};
-        
+        use tokio::time::{sleep, timeout, Duration};
+
         let check_interval = Duration::from_millis(50);
         let max_duration = timeout_ms.map(Duration::from_millis);
-        
+
         let wait_future = async {
             loop {
                 let current_state = self.get_state().await?;
@@ -225,12 +245,11 @@ impl SwitchManager {
                 sleep(check_interval).await;
             }
         };
-        
+
         match max_duration {
-            Some(duration) => {
-                timeout(duration, wait_future).await
-                    .map_err(|_| ObnizError::Timeout)?
-            }
+            Some(duration) => timeout(duration, wait_future)
+                .await
+                .map_err(|_| ObnizError::Timeout)?,
             None => wait_future.await,
         }
     }
@@ -248,43 +267,82 @@ mod tests {
     #[test]
     fn test_switch_state_serialization() {
         use serde_json;
-        
-        assert_eq!(serde_json::to_string(&SwitchState::None).unwrap(), "\"none\"");
-        assert_eq!(serde_json::to_string(&SwitchState::Push).unwrap(), "\"push\"");
-        assert_eq!(serde_json::to_string(&SwitchState::Left).unwrap(), "\"left\"");
-        assert_eq!(serde_json::to_string(&SwitchState::Right).unwrap(), "\"right\"");
+
+        assert_eq!(
+            serde_json::to_string(&SwitchState::None).unwrap(),
+            "\"none\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchState::Push).unwrap(),
+            "\"push\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchState::Left).unwrap(),
+            "\"left\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchState::Right).unwrap(),
+            "\"right\""
+        );
     }
 
     #[test]
     fn test_switch_state_deserialization() {
         use serde_json;
-        
-        assert_eq!(serde_json::from_str::<SwitchState>("\"none\"").unwrap(), SwitchState::None);
-        assert_eq!(serde_json::from_str::<SwitchState>("\"push\"").unwrap(), SwitchState::Push);
-        assert_eq!(serde_json::from_str::<SwitchState>("\"left\"").unwrap(), SwitchState::Left);
-        assert_eq!(serde_json::from_str::<SwitchState>("\"right\"").unwrap(), SwitchState::Right);
+
+        assert_eq!(
+            serde_json::from_str::<SwitchState>("\"none\"").unwrap(),
+            SwitchState::None
+        );
+        assert_eq!(
+            serde_json::from_str::<SwitchState>("\"push\"").unwrap(),
+            SwitchState::Push
+        );
+        assert_eq!(
+            serde_json::from_str::<SwitchState>("\"left\"").unwrap(),
+            SwitchState::Left
+        );
+        assert_eq!(
+            serde_json::from_str::<SwitchState>("\"right\"").unwrap(),
+            SwitchState::Right
+        );
     }
 
     #[test]
     fn test_switch_action_serialization() {
         use serde_json;
-        
-        assert_eq!(serde_json::to_string(&SwitchAction::Get).unwrap(), "\"get\"");
-        assert_eq!(serde_json::to_string(&SwitchAction::Push).unwrap(), "\"push\"");
-        assert_eq!(serde_json::to_string(&SwitchAction::Release).unwrap(), "\"release\"");
-        assert_eq!(serde_json::to_string(&SwitchAction::Left).unwrap(), "\"left\"");
-        assert_eq!(serde_json::to_string(&SwitchAction::Right).unwrap(), "\"right\"");
+
+        assert_eq!(
+            serde_json::to_string(&SwitchAction::Get).unwrap(),
+            "\"get\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchAction::Push).unwrap(),
+            "\"push\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchAction::Release).unwrap(),
+            "\"release\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchAction::Left).unwrap(),
+            "\"left\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchAction::Right).unwrap(),
+            "\"right\""
+        );
     }
 
     #[test]
     fn test_switch_response_serialization() {
         use serde_json;
-        
+
         let response = SwitchResponse {
             state: SwitchState::Push,
             action: SwitchAction::Push,
         };
-        
+
         let serialized = serde_json::to_string(&response).unwrap();
         assert!(serialized.contains("\"state\":\"push\""));
         assert!(serialized.contains("\"action\":\"push\""));
@@ -293,10 +351,10 @@ mod tests {
     #[test]
     fn test_switch_response_deserialization() {
         use serde_json;
-        
+
         let json_str = r#"{"state": "left", "action": "left"}"#;
         let response: SwitchResponse = serde_json::from_str(json_str).unwrap();
-        
+
         assert_eq!(response.state, SwitchState::Left);
         assert_eq!(response.action, SwitchAction::Left);
     }

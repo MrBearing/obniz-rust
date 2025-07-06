@@ -5,31 +5,31 @@ use std::fmt;
 pub enum ObnizError {
     /// Connection errors
     Connection(String),
-    
+
     /// WebSocket communication errors
     WebSocket(String),
-    
+
     /// IO operation errors
     IoOperation(String),
-    
+
     /// Invalid pin number (valid range: 0-11)
     InvalidPin(u8),
-    
+
     /// JSON parsing errors
     JsonParse(String),
-    
+
     /// Response timeout
     Timeout,
-    
+
     /// Callback registration errors
     CallbackError(String),
-    
+
     /// Device not found or invalid device ID
     DeviceNotFound(String),
-    
+
     /// Permission denied
     PermissionDenied,
-    
+
     /// Generic error with message
     Generic(String),
 }
@@ -40,7 +40,9 @@ impl fmt::Display for ObnizError {
             ObnizError::Connection(msg) => write!(f, "Connection error: {}", msg),
             ObnizError::WebSocket(msg) => write!(f, "WebSocket error: {}", msg),
             ObnizError::IoOperation(msg) => write!(f, "IO operation error: {}", msg),
-            ObnizError::InvalidPin(pin) => write!(f, "Invalid pin number: {}. Valid range is 0-11", pin),
+            ObnizError::InvalidPin(pin) => {
+                write!(f, "Invalid pin number: {}. Valid range is 0-11", pin)
+            }
             ObnizError::JsonParse(msg) => write!(f, "JSON parse error: {}", msg),
             ObnizError::Timeout => write!(f, "Operation timed out"),
             ObnizError::CallbackError(msg) => write!(f, "Callback error: {}", msg),
@@ -96,10 +98,7 @@ pub fn validate_pin(pin: u8) -> ObnizResult<()> {
 }
 
 /// Timeout helper for operations
-pub async fn with_timeout<F, T>(
-    future: F,
-    timeout_duration: std::time::Duration,
-) -> ObnizResult<T>
+pub async fn with_timeout<F, T>(future: F, timeout_duration: std::time::Duration) -> ObnizResult<T>
 where
     F: std::future::Future<Output = ObnizResult<T>>,
 {

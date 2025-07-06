@@ -2,8 +2,8 @@
 use serde_json::json;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+use crate::error::{validate_pin, ObnizError, ObnizResult};
 use crate::obniz::Obniz;
-use crate::error::{ObnizError, ObnizResult, validate_pin};
 
 /// AD channel configuration
 #[derive(Debug, Clone)]
@@ -37,41 +37,52 @@ impl AdChannel {
     /// Get current voltage reading
     pub async fn get(&self) -> ObnizResult<f64> {
         validate_pin(self.channel)?;
-        
+
         let channel_key = self.channel_key();
         let request = json!([{&channel_key: "get"}]);
         let message = Message::from(request.to_string());
-        
-        let response = self.obniz.send_await_response(message, channel_key.clone()).await
+
+        let response = self
+            .obniz
+            .send_await_response(message, channel_key.clone())
+            .await
             .map_err(|e| ObnizError::Connection(e.to_string()))?;
-        
+
         // Parse the response to extract the voltage value
         // Response format is typically [{"ad2": 3.3}]
         if let Some(array) = response.as_array() {
             if let Some(first_item) = array.first() {
                 if let Some(value) = first_item.get(&channel_key) {
-                    return value.as_f64().ok_or_else(|| ObnizError::Generic("Invalid voltage value in response".to_string()));
+                    return value.as_f64().ok_or_else(|| {
+                        ObnizError::Generic("Invalid voltage value in response".to_string())
+                    });
                 }
             }
         }
-        
+
         // Fallback: try direct object access
         if let Some(value) = response.get(&channel_key) {
-            value.as_f64().ok_or_else(|| ObnizError::Generic("Invalid voltage value in response".to_string()))
+            value
+                .as_f64()
+                .ok_or_else(|| ObnizError::Generic("Invalid voltage value in response".to_string()))
         } else {
-            Err(ObnizError::Generic(format!("No response for AD channel {}", self.channel)))
+            Err(ObnizError::Generic(format!(
+                "No response for AD channel {}",
+                self.channel
+            )))
         }
     }
 
     /// Configure AD channel
     pub async fn configure(&self, config: AdConfig) -> ObnizResult<()> {
         validate_pin(self.channel)?;
-        
+
         let channel_key = self.channel_key();
         let request = json!([{&channel_key: {"stream": config.stream}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -91,21 +102,23 @@ impl AdChannel {
         F: Fn(f64) + Send + Sync + 'static,
     {
         validate_pin(self.channel)?;
-        
+
         // Enable stream mode first
         self.enable_stream().await?;
-        
+
         let channel_key = self.channel_key();
         let channel_key_clone = channel_key.clone();
-        
-        self.obniz.register_callback(channel_key, move |response| {
-            if let Some(value) = response.get(&channel_key_clone) {
-                if let Some(voltage) = value.as_f64() {
-                    callback(voltage);
+
+        self.obniz
+            .register_callback(channel_key, move |response| {
+                if let Some(value) = response.get(&channel_key_clone) {
+                    if let Some(voltage) = value.as_f64() {
+                        callback(voltage);
+                    }
                 }
-            }
-        }).map_err(|e| ObnizError::CallbackError(e.to_string()))?;
-        
+            })
+            .map_err(|e| ObnizError::CallbackError(e.to_string()))?;
+
         Ok(())
     }
 
@@ -113,19 +126,21 @@ impl AdChannel {
     pub fn remove_callback(&self) -> ObnizResult<()> {
         validate_pin(self.channel)?;
         let channel_key = self.channel_key();
-        self.obniz.unregister_callback(channel_key)
+        self.obniz
+            .unregister_callback(channel_key)
             .map_err(|e| ObnizError::CallbackError(e.to_string()))
     }
 
     /// Deinitialize AD channel
     pub async fn deinit(&self) -> ObnizResult<()> {
         validate_pin(self.channel)?;
-        
+
         let channel_key = self.channel_key();
         let request = json!([{&channel_key: null}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 }
@@ -155,12 +170,12 @@ impl AdManager {
     /// Get voltages from multiple channels
     pub async fn get_voltages(&self, channels: Vec<u8>) -> ObnizResult<Vec<AdValue>> {
         let mut results = Vec::new();
-        
+
         for channel in channels {
             let voltage = self.get_voltage(channel).await?;
             results.push(AdValue { channel, voltage });
         }
-        
+
         Ok(results)
     }
 
@@ -215,7 +230,7 @@ impl AdManager {
 
     /// Utility function to check if voltage is within safe range
     pub fn is_voltage_safe(voltage: f64) -> bool {
-        voltage >= 0.0 && voltage <= 5.0
+        (0.0..=5.0).contains(&voltage)
     }
 }
 
@@ -229,7 +244,7 @@ mod tests {
             channel: 5,
             voltage: 3.3,
         };
-        
+
         assert_eq!(value.channel, 5);
         assert_eq!(value.voltage, 3.3);
     }
@@ -238,7 +253,7 @@ mod tests {
     fn test_ad_config_creation() {
         let config = AdConfig { stream: true };
         assert!(config.stream);
-        
+
         let config = AdConfig { stream: false };
         assert!(!config.stream);
     }

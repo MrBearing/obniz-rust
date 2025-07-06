@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use crate::obniz::Obniz;
 use crate::error::{ObnizError, ObnizResult};
+use crate::obniz::Obniz;
 
 /// UART parity settings
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -92,17 +92,23 @@ impl UartChannel {
 
         // Validate baud rate
         if config.baud_rate == 0 || config.baud_rate > 5_000_000 {
-            return Err(ObnizError::Generic("Baud rate must be between 1 and 5,000,000".to_string()));
+            return Err(ObnizError::Generic(
+                "Baud rate must be between 1 and 5,000,000".to_string(),
+            ));
         }
 
         // Validate data bits
         if config.data_bits < 5 || config.data_bits > 8 {
-            return Err(ObnizError::Generic("Data bits must be 5, 6, 7, or 8".to_string()));
+            return Err(ObnizError::Generic(
+                "Data bits must be 5, 6, 7, or 8".to_string(),
+            ));
         }
 
         // Validate stop bits
         if config.stop_bits != 1.0 && config.stop_bits != 1.5 && config.stop_bits != 2.0 {
-            return Err(ObnizError::Generic("Stop bits must be 1, 1.5, or 2".to_string()));
+            return Err(ObnizError::Generic(
+                "Stop bits must be 1, 1.5, or 2".to_string(),
+            ));
         }
 
         let channel_key = self.channel_key();
@@ -125,8 +131,9 @@ impl UartChannel {
 
         let request = json!([{&channel_key: uart_config}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -141,8 +148,9 @@ impl UartChannel {
         let channel_key = self.channel_key();
         let request = json!([{&channel_key: {"data": data}}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 
@@ -159,22 +167,24 @@ impl UartChannel {
     {
         let channel_key = self.channel_key();
         let channel_key_clone = channel_key.clone();
-        
-        self.obniz.register_callback(channel_key, move |response| {
-            if let Some(uart_data) = response.get(&channel_key_clone) {
-                if let Some(data_array) = uart_data.get("data") {
-                    if let Some(data_vec) = data_array.as_array() {
-                        let bytes: Vec<u8> = data_vec
-                            .iter()
-                            .filter_map(|v| v.as_u64())
-                            .map(|v| v as u8)
-                            .collect();
-                        callback(bytes);
+
+        self.obniz
+            .register_callback(channel_key, move |response| {
+                if let Some(uart_data) = response.get(&channel_key_clone) {
+                    if let Some(data_array) = uart_data.get("data") {
+                        if let Some(data_vec) = data_array.as_array() {
+                            let bytes: Vec<u8> = data_vec
+                                .iter()
+                                .filter_map(|v| v.as_u64())
+                                .map(|v| v as u8)
+                                .collect();
+                            callback(bytes);
+                        }
                     }
                 }
-            }
-        }).map_err(|e| ObnizError::CallbackError(e.to_string()))?;
-        
+            })
+            .map_err(|e| ObnizError::CallbackError(e.to_string()))?;
+
         Ok(())
     }
 
@@ -187,13 +197,15 @@ impl UartChannel {
             if let Ok(text) = String::from_utf8(data) {
                 callback(text);
             }
-        }).await
+        })
+        .await
     }
 
     /// Remove receive callback
     pub fn remove_callback(&self) -> ObnizResult<()> {
         let channel_key = self.channel_key();
-        self.obniz.unregister_callback(channel_key)
+        self.obniz
+            .unregister_callback(channel_key)
             .map_err(|e| ObnizError::CallbackError(e.to_string()))
     }
 
@@ -202,8 +214,9 @@ impl UartChannel {
         let channel_key = self.channel_key();
         let request = json!([{&channel_key: null}]);
         let message = Message::from(request.to_string());
-        
-        self.obniz.send_message(message)
+
+        self.obniz
+            .send_message(message)
             .map_err(|e| ObnizError::Connection(e.to_string()))
     }
 }
@@ -285,7 +298,13 @@ impl UartManager {
     }
 
     /// Create UART configuration with flow control
-    pub fn flow_control_config(rx_pin: u8, tx_pin: u8, rts_pin: u8, cts_pin: u8, baud_rate: u32) -> UartConfig {
+    pub fn flow_control_config(
+        rx_pin: u8,
+        tx_pin: u8,
+        rts_pin: u8,
+        cts_pin: u8,
+        baud_rate: u32,
+    ) -> UartConfig {
         UartConfig {
             rx_pin,
             tx_pin,
@@ -305,7 +324,7 @@ mod tests {
     #[test]
     fn test_uart_config_default() {
         let config = UartConfig::default();
-        
+
         assert_eq!(config.rx_pin, 0);
         assert_eq!(config.tx_pin, 1);
         assert_eq!(config.baud_rate, 115200);
@@ -328,7 +347,7 @@ mod tests {
             rts_pin: Some(4),
             cts_pin: Some(5),
         };
-        
+
         assert_eq!(config.rx_pin, 2);
         assert_eq!(config.tx_pin, 3);
         assert_eq!(config.baud_rate, 9600);
@@ -339,7 +358,7 @@ mod tests {
     #[test]
     fn test_parity_serialization() {
         use serde_json;
-        
+
         assert_eq!(serde_json::to_string(&Parity::Off).unwrap(), "\"off\"");
         assert_eq!(serde_json::to_string(&Parity::Odd).unwrap(), "\"odd\"");
         assert_eq!(serde_json::to_string(&Parity::Even).unwrap(), "\"even\"");
@@ -348,17 +367,20 @@ mod tests {
     #[test]
     fn test_flow_control_serialization() {
         use serde_json;
-        
+
         assert_eq!(serde_json::to_string(&FlowControl::Off).unwrap(), "\"off\"");
         assert_eq!(serde_json::to_string(&FlowControl::Rts).unwrap(), "\"rts\"");
         assert_eq!(serde_json::to_string(&FlowControl::Cts).unwrap(), "\"cts\"");
-        assert_eq!(serde_json::to_string(&FlowControl::RtsCts).unwrap(), "\"rts-cts\"");
+        assert_eq!(
+            serde_json::to_string(&FlowControl::RtsCts).unwrap(),
+            "\"rts-cts\""
+        );
     }
 
     #[test]
     fn test_simple_config_creation() {
         let config = UartManager::simple_config(2, 3, 9600);
-        
+
         assert_eq!(config.rx_pin, 2);
         assert_eq!(config.tx_pin, 3);
         assert_eq!(config.baud_rate, 9600);
@@ -368,7 +390,7 @@ mod tests {
     #[test]
     fn test_flow_control_config_creation() {
         let config = UartManager::flow_control_config(0, 1, 2, 3, 115200);
-        
+
         assert_eq!(config.rx_pin, 0);
         assert_eq!(config.tx_pin, 1);
         assert_eq!(config.rts_pin, Some(2));

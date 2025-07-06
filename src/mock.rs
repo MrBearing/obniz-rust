@@ -1,6 +1,6 @@
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
@@ -61,7 +61,10 @@ impl MockWebSocketServer {
             response,
             delay_ms: Some(self.config.default_delay_ms),
         };
-        self.message_handlers.lock().unwrap().insert(request_key.to_string(), mock_msg);
+        self.message_handlers
+            .lock()
+            .unwrap()
+            .insert(request_key.to_string(), mock_msg);
     }
 
     /// Add a mock response with custom delay
@@ -71,7 +74,10 @@ impl MockWebSocketServer {
             response,
             delay_ms: Some(delay_ms),
         };
-        self.message_handlers.lock().unwrap().insert(request_key.to_string(), mock_msg);
+        self.message_handlers
+            .lock()
+            .unwrap()
+            .insert(request_key.to_string(), mock_msg);
     }
 
     /// Get all sent messages for verification
@@ -90,9 +96,11 @@ impl MockWebSocketServer {
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         }
 
-        let text = message.to_text().map_err(|_| ObnizError::Generic("Invalid message".to_string()))?;
-        let request: Value = serde_json::from_str(text)
-            .map_err(|e| ObnizError::JsonParse(e.to_string()))?;
+        let text = message
+            .to_text()
+            .map_err(|_| ObnizError::Generic("Invalid message".to_string()))?;
+        let request: Value =
+            serde_json::from_str(text).map_err(|e| ObnizError::JsonParse(e.to_string()))?;
 
         // Store sent message
         self.sent_messages.lock().unwrap().push(request.clone());
@@ -113,7 +121,7 @@ impl MockWebSocketServer {
 
     fn find_mock_response(&self, request: &Value) -> Option<MockMessage> {
         let handlers = self.message_handlers.lock().unwrap();
-        
+
         // Try to match based on the request structure
         if let Some(array) = request.as_array() {
             if let Some(first_item) = array.first() {
@@ -122,7 +130,7 @@ impl MockWebSocketServer {
                         if let Some(mock_msg) = handlers.get(key) {
                             return Some(mock_msg.clone());
                         }
-                        
+
                         // Check for nested keys
                         if let Some(nested) = first_item.get(key) {
                             if let Some(nested_obj) = nested.as_object() {
@@ -227,7 +235,7 @@ impl MockWebSocketServer {
                 }
             }
         }
-        
+
         // Default success response
         json!([{"status": "ok"}])
     }
@@ -262,7 +270,7 @@ impl MockObniz {
     pub fn new(config: MockConfig) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let server = Arc::new(MockWebSocketServer::new(config.clone()));
-        
+
         Self {
             device_id: config.device_id,
             server,
@@ -277,12 +285,19 @@ impl MockObniz {
 
     pub async fn send_message(&self, message: Message) -> ObnizResult<()> {
         self.command_sender
-            .send(ObnizCommand::Send { message, response_key: None })
+            .send(ObnizCommand::Send {
+                message,
+                response_key: None,
+            })
             .map_err(|e| ObnizError::Connection(e.to_string()))?;
         Ok(())
     }
 
-    pub async fn send_await_response(&self, message: Message, _response_key: String) -> ObnizResult<Value> {
+    pub async fn send_await_response(
+        &self,
+        message: Message,
+        _response_key: String,
+    ) -> ObnizResult<Value> {
         // Process message through mock server
         if let Some(response) = self.server.process_message(message).await? {
             Ok(response)
@@ -295,10 +310,11 @@ impl MockObniz {
     where
         F: Fn(Value) + Send + Sync + 'static,
     {
-        self.server.callbacks.lock().unwrap().insert(
-            key,
-            CallbackType::Persistent(Box::new(callback))
-        );
+        self.server
+            .callbacks
+            .lock()
+            .unwrap()
+            .insert(key, CallbackType::Persistent(Box::new(callback)));
         Ok(())
     }
 
@@ -365,7 +381,7 @@ mod tests {
     async fn test_mock_server_creation() {
         let config = MockConfig::default();
         let server = MockWebSocketServer::new(config);
-        
+
         assert_eq!(server.config.device_id, "mock-device");
         assert!(!server.config.should_fail_connection);
     }
@@ -374,17 +390,17 @@ mod tests {
     async fn test_mock_responses() {
         let config = MockConfig::default();
         let server = MockWebSocketServer::new(config);
-        
+
         // Add custom response
         server.add_response("io0", responses::io_pin_state(0, true));
-        
+
         // Test message processing
         let request = json!([{"io0": "get"}]);
         let message = Message::from(request.to_string());
-        
+
         let response = server.process_message(message).await.unwrap();
         assert!(response.is_some());
-        
+
         let response_value = response.unwrap();
         assert_eq!(response_value, responses::io_pin_state(0, true));
     }
@@ -393,14 +409,14 @@ mod tests {
     async fn test_default_responses() {
         let config = MockConfig::default();
         let server = MockWebSocketServer::new(config);
-        
+
         // Test default IO response
         let request = json!([{"io0": "get"}]);
         let message = Message::from(request.to_string());
-        
+
         let response = server.process_message(message).await.unwrap();
         assert!(response.is_some());
-        
+
         // Should return default pin state (false)
         let response_value = response.unwrap();
         assert_eq!(response_value, json!([{"io0": false}]));
@@ -410,16 +426,16 @@ mod tests {
     async fn test_sent_message_tracking() {
         let config = MockConfig::default();
         let server = MockWebSocketServer::new(config);
-        
+
         let request1 = json!([{"io0": true}]);
         let request2 = json!([{"io1": false}]);
-        
+
         let message1 = Message::from(request1.to_string());
         let message2 = Message::from(request2.to_string());
-        
+
         server.process_message(message1).await.unwrap();
         server.process_message(message2).await.unwrap();
-        
+
         let sent_messages = server.get_sent_messages();
         assert_eq!(sent_messages.len(), 2);
         assert_eq!(sent_messages[0], request1);
