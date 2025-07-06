@@ -1,5 +1,7 @@
 # Obniz Rust
 
+[![CI](https://github.com/MrBearing/obniz-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/MrBearing/obniz-rust/actions/workflows/ci.yml)
+
 🦀 WebSocket通信によるobniz IoTデバイス制御のための包括的なRustライブラリ
 
 ## 特徴
